@@ -2,13 +2,13 @@ import { LitElement, css, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type {
   CardHelpersFormSchema,
-  HassEntity,
   HomeAssistant,
   IntelligentOctopusSlotsCardConfig,
   LovelaceCardEditor,
 } from "./types";
 
 const CARD_TYPE = "custom:intelligent-octopus-slots-card";
+const DEFAULT_ICON = "mdi:ev-station";
 
 const AUTO_DETECT_PATTERNS = [
   "intelligent_dispatch",
@@ -33,6 +33,13 @@ const editorSchema: CardHelpersFormSchema[] = [
     },
   },
   {
+    name: "icon",
+    label: "Icon",
+    selector: {
+      icon: {},
+    },
+  },
+  {
     name: "dispatching_entity",
     label: "Intelligent Dispatching Entity",
     selector: {
@@ -49,15 +56,6 @@ const fireEvent = (node: HTMLElement, type: string, detail?: Record<string, unkn
       composed: true,
     }),
   );
-};
-
-const friendlyState = (entity?: HassEntity): string => {
-  if (!entity) {
-    return "Unavailable";
-  }
-
-  const friendlyName = entity.attributes.friendly_name;
-  return typeof friendlyName === "string" && friendlyName.trim() ? friendlyName : entity.entity_id;
 };
 
 interface PlannedDispatchSlot {
@@ -224,6 +222,7 @@ export class IntelligentOctopusSlotsCard extends LitElement {
       type: CARD_TYPE,
       title: "Intelligent Octopus Slots",
       show_title: true,
+      icon: DEFAULT_ICON,
       dispatching_entity: detectDispatchingEntity(hass),
     };
   }
@@ -251,10 +250,10 @@ export class IntelligentOctopusSlotsCard extends LitElement {
     const entity = this._config.dispatching_entity ? this.hass?.states[this._config.dispatching_entity] : undefined;
     const slots = parsePlannedDispatches(entity?.attributes.planned_dispatches);
     const slotGroups = groupSlotsByDate(slots);
-    const isConfigured = Boolean(this._config.dispatching_entity);
     const slotCount = slots.length;
     const summaryDate = slotGroups.length === 1 && slotCount ? formatSummaryDate(slots[0].startDate) : undefined;
     const title = this._config.title || "Intelligent Octopus Slots";
+    const icon = this._config.icon || DEFAULT_ICON;
 
     return html`
       <ha-card>
@@ -262,15 +261,9 @@ export class IntelligentOctopusSlotsCard extends LitElement {
           <div class="header">
             <div class="header-main">
               <div class="icon-badge" aria-hidden="true">
-                <svg viewBox="0 0 24 24" focusable="false">
-                  <path
-                    d="M7 4a2 2 0 0 0-2 2v11a3 3 0 0 0 3 3h5v-2H8a1 1 0 0 1-1-1v-4h5a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2H7Zm0 2h5v5H7V6Zm10.59 1L14 12h3v5h2v-5h3l-4.59-5Z"
-                    fill="currentColor"
-                  />
-                </svg>
+                <ha-icon .icon=${icon}></ha-icon>
               </div>
               <div class="title-block">
-                <div class="eyebrow">Intelligent Charging</div>
                 ${this._config.show_title ? html`<h2>${title}</h2>` : nothing}
                 <div class="summary-line">
                   ${slotCount
@@ -290,19 +283,9 @@ export class IntelligentOctopusSlotsCard extends LitElement {
             </div>
           </div>
 
-          <div class="hero">
-            <div class="hero-copy">
-              <div class="label">Dispatching Entity</div>
-              <div class="value">${isConfigured ? friendlyState(entity) : "Not configured"}</div>
-            </div>
-            ${this._config.dispatching_entity
-              ? html`<div class="entity-id">${this._config.dispatching_entity}</div>`
-              : html`<div class="entity-id">Use the visual editor to select an entity</div>`}
-          </div>
-
           <div class="section">
-            ${slots.length
-              ? html`
+              ${slots.length
+                ? html`
                   <div class="slot-groups">
                     ${slotGroups.map(
                       (group) => html`
@@ -326,15 +309,9 @@ export class IntelligentOctopusSlotsCard extends LitElement {
               : html`
                   <div class="empty-state">
                     <div class="empty-icon" aria-hidden="true">
-                      <svg viewBox="0 0 24 24" focusable="false">
-                        <path
-                          d="M7 4a2 2 0 0 0-2 2v11a3 3 0 0 0 3 3h5v-2H8a1 1 0 0 1-1-1v-4h5a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2H7Zm0 2h5v5H7V6Zm11.71 8.29-1.42-1.42L15 15.17l-1.29-1.3-1.42 1.42L15 18l3.71-3.71Z"
-                          fill="currentColor"
-                        />
-                      </svg>
+                      <ha-icon .icon=${icon}></ha-icon>
                     </div>
                     <div class="empty-title">No charging slots scheduled</div>
-                    <div class="empty-copy">Your upcoming off-peak dispatches will appear here automatically.</div>
                   </div>
                 `
             }
@@ -351,220 +328,177 @@ export class IntelligentOctopusSlotsCard extends LitElement {
 
     ha-card {
       overflow: hidden;
-      border: 1px solid rgba(150, 175, 196, 0.24);
-      border-radius: 22px;
-      background:
-        radial-gradient(circle at top right, rgba(173, 216, 255, 0.5), transparent 36%),
-        radial-gradient(circle at bottom left, rgba(210, 244, 235, 0.6), transparent 34%),
-        linear-gradient(180deg, #f9fbfe 0%, #f2f7fb 100%);
-      color: #163047;
-      box-shadow: 0 14px 34px rgba(75, 102, 129, 0.14);
+      border-radius: var(--ha-card-border-radius, 12px);
+      background: var(--ha-card-background, var(--card-background-color, #fff));
+      color: var(--primary-text-color);
+      box-shadow: var(--ha-card-box-shadow, none);
     }
 
     .card-shell {
-      padding: 16px;
+      padding: 12px;
       display: grid;
-      gap: 12px;
+      gap: 10px;
     }
 
     .header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 12px;
+      gap: 10px;
     }
 
     .header-main {
       min-width: 0;
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
     }
 
     .icon-badge {
-      width: 42px;
-      height: 42px;
-      border-radius: 14px;
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
       display: grid;
       place-items: center;
-      color: #2464a9;
-      background: linear-gradient(135deg, rgba(188, 222, 255, 0.95), rgba(225, 246, 255, 0.92));
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+      color: var(--primary-color);
+      background: var(--secondary-background-color, rgba(127, 127, 127, 0.12));
       flex: 0 0 auto;
     }
 
-    .icon-badge svg {
-      width: 22px;
-      height: 22px;
+    .icon-badge ha-icon {
+      width: 18px;
+      height: 18px;
+      display: block;
     }
 
     .title-block {
       min-width: 0;
     }
 
-    .eyebrow,
-    .label {
-      font-size: 0.68rem;
-      line-height: 1.1;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      color: rgba(38, 72, 101, 0.58);
-    }
-
     h2 {
-      margin: 4px 0 0;
-      font-size: 1rem;
+      margin: 0;
+      font-size: 0.96rem;
       font-weight: 600;
       line-height: 1.2;
-      color: #163047;
+      color: var(--primary-text-color);
     }
 
     .summary-line {
-      margin-top: 5px;
+      margin-top: 2px;
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
       flex-wrap: wrap;
-      font-size: 0.84rem;
-      color: rgba(22, 48, 71, 0.76);
+      font-size: 0.8rem;
+      color: var(--secondary-text-color);
     }
 
     .summary-dot {
       width: 4px;
       height: 4px;
       border-radius: 50%;
-      background: rgba(36, 100, 169, 0.35);
+      background: var(--secondary-text-color);
+      opacity: 0.5;
     }
 
     .status-pill {
-      padding: 7px 10px;
+      padding: 5px 8px;
       border-radius: 999px;
-      font-size: 0.72rem;
+      font-size: 0.68rem;
       font-weight: 600;
       text-transform: capitalize;
-      background: rgba(255, 255, 255, 0.7);
-      color: rgba(22, 48, 71, 0.7);
+      background: var(--secondary-background-color, rgba(127, 127, 127, 0.12));
+      color: var(--secondary-text-color);
       white-space: nowrap;
-      border: 1px solid rgba(137, 173, 198, 0.28);
     }
 
     .status-pill.active {
-      background: rgba(212, 246, 229, 0.95);
-      color: #16734c;
-      border-color: rgba(96, 193, 141, 0.34);
+      background: color-mix(in srgb, var(--success-color, #43a047) 16%, var(--secondary-background-color, transparent));
+      color: var(--success-color, #43a047);
     }
 
-    .hero,
     .section {
-      padding: 12px 14px;
-      border-radius: 18px;
-      background: rgba(255, 255, 255, 0.62);
-      border: 1px solid rgba(163, 191, 212, 0.22);
-      backdrop-filter: blur(10px);
-    }
-
-    .hero {
-      display: grid;
-      gap: 8px;
-    }
-
-    .value {
-      margin-top: 4px;
-      font-size: 0.96rem;
-      font-weight: 600;
-      color: #163047;
-    }
-
-    .entity-id {
-      font-size: 0.78rem;
-      color: rgba(22, 48, 71, 0.58);
-      word-break: break-word;
+      padding: 0;
     }
 
     .slot-list {
       display: flex;
       flex-wrap: wrap;
-      gap: 8px;
+      gap: 6px;
     }
 
     .slot-groups {
       display: grid;
-      gap: 10px;
+      gap: 8px;
     }
 
     .slot-group {
       display: grid;
-      gap: 8px;
+      gap: 6px;
     }
 
     .group-label {
-      font-size: 0.72rem;
+      font-size: 0.68rem;
       line-height: 1.1;
       letter-spacing: 0.08em;
       text-transform: uppercase;
-      color: rgba(38, 72, 101, 0.58);
-      padding-left: 4px;
+      color: var(--secondary-text-color);
+      padding-left: 2px;
     }
 
     .slot-chip {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 10px;
+      gap: 8px;
       min-width: min(100%, 148px);
-      padding: 9px 12px;
+      padding: 7px 10px;
       border-radius: 999px;
-      background: linear-gradient(180deg, rgba(233, 245, 255, 0.95), rgba(245, 251, 255, 0.98));
-      border: 1px solid rgba(160, 196, 221, 0.42);
-      color: #163047;
+      background: var(--secondary-background-color, rgba(127, 127, 127, 0.12));
+      color: var(--primary-text-color);
     }
 
     .slot-times {
       min-width: 0;
-      font-size: 0.86rem;
+      font-size: 0.82rem;
       font-weight: 600;
     }
 
     .slot-meta {
-      font-size: 0.74rem;
-      color: rgba(22, 48, 71, 0.58);
+      font-size: 0.7rem;
+      color: var(--secondary-text-color);
       white-space: nowrap;
     }
 
     .empty-state {
       display: grid;
-      gap: 6px;
-      min-height: 94px;
+      gap: 4px;
+      min-height: 72px;
       justify-items: start;
       align-content: center;
-      padding: 6px 2px;
+      padding: 4px 2px;
     }
 
     .empty-icon {
-      width: 34px;
-      height: 34px;
-      border-radius: 12px;
+      width: 28px;
+      height: 28px;
+      border-radius: 9px;
       display: grid;
       place-items: center;
-      color: #2464a9;
-      background: linear-gradient(135deg, rgba(226, 240, 255, 0.95), rgba(237, 248, 255, 0.98));
-      border: 1px solid rgba(160, 196, 221, 0.42);
+      color: var(--primary-color);
+      background: var(--secondary-background-color, rgba(127, 127, 127, 0.12));
     }
 
-    .empty-icon svg {
-      width: 18px;
-      height: 18px;
+    .empty-icon ha-icon {
+      width: 16px;
+      height: 16px;
+      display: block;
     }
 
     .empty-title {
-      font-size: 0.92rem;
+      font-size: 0.84rem;
       font-weight: 600;
-      color: #163047;
-    }
-
-    .empty-copy {
-      font-size: 0.8rem;
-      color: rgba(22, 48, 71, 0.58);
+      color: var(--primary-text-color);
     }
 
     @media (max-width: 480px) {
@@ -573,21 +507,17 @@ export class IntelligentOctopusSlotsCard extends LitElement {
       }
 
       .header-main {
-        gap: 10px;
+        gap: 8px;
       }
 
       .icon-badge {
-        width: 38px;
-        height: 38px;
-        border-radius: 12px;
+        width: 32px;
+        height: 32px;
+        border-radius: 10px;
       }
 
       .slot-chip {
         width: 100%;
-      }
-
-      .summary-line {
-        gap: 6px;
       }
     }
   `;

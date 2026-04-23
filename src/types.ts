@@ -26,6 +26,7 @@ export interface IntelligentOctopusSlotsCardConfig {
   type: string;
   title?: string;
   show_title?: boolean;
+  icon?: string;
   dispatching_entity?: string;
 }
 
@@ -42,6 +43,9 @@ declare global {
 
   interface HTMLElementTagNameMap {
     "ha-card": HTMLElement;
+    "ha-icon": HTMLElement & {
+      icon?: string;
+    };
     "ha-form": HTMLElement & {
       hass?: HomeAssistant;
       data?: Record<string, unknown>;
