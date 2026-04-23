@@ -283,9 +283,9 @@ export class IntelligentOctopusSlotsCard extends LitElement {
             </div>
           </div>
 
-          <div class="section">
-              ${slots.length
-                ? html`
+          ${slots.length
+            ? html`
+                <div class="section">
                   <div class="slot-groups">
                     ${slotGroups.map(
                       (group) => html`
@@ -305,17 +305,9 @@ export class IntelligentOctopusSlotsCard extends LitElement {
                       `,
                     )}
                   </div>
-                `
-              : html`
-                  <div class="empty-state">
-                    <div class="empty-icon" aria-hidden="true">
-                      <ha-icon .icon=${icon}></ha-icon>
-                    </div>
-                    <div class="empty-title">No charging slots scheduled</div>
-                  </div>
-                `
-            }
-          </div>
+                </div>
+              `
+            : nothing}
         </div>
       </ha-card>
     `;
@@ -468,37 +460,6 @@ export class IntelligentOctopusSlotsCard extends LitElement {
       font-size: 0.7rem;
       color: var(--secondary-text-color);
       white-space: nowrap;
-    }
-
-    .empty-state {
-      display: grid;
-      gap: 4px;
-      min-height: 72px;
-      justify-items: start;
-      align-content: center;
-      padding: 4px 2px;
-    }
-
-    .empty-icon {
-      width: 28px;
-      height: 28px;
-      border-radius: 9px;
-      display: grid;
-      place-items: center;
-      color: var(--primary-color);
-      background: var(--secondary-background-color, rgba(127, 127, 127, 0.12));
-    }
-
-    .empty-icon ha-icon {
-      width: 16px;
-      height: 16px;
-      display: block;
-    }
-
-    .empty-title {
-      font-size: 0.84rem;
-      font-weight: 600;
-      color: var(--primary-text-color);
     }
 
     @media (max-width: 480px) {
