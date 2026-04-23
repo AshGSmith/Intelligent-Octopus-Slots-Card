@@ -3,7 +3,7 @@
  * Copyright 2019 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const H = globalThis, B = H.ShadowRoot && (H.ShadyCSS === void 0 || H.ShadyCSS.nativeShadow) && "adoptedStyleSheets" in Document.prototype && "replace" in CSSStyleSheet.prototype, V = Symbol(), K = /* @__PURE__ */ new WeakMap();
+const M = globalThis, B = M.ShadowRoot && (M.ShadyCSS === void 0 || M.ShadyCSS.nativeShadow) && "adoptedStyleSheets" in Document.prototype && "replace" in CSSStyleSheet.prototype, V = Symbol(), K = /* @__PURE__ */ new WeakMap();
 let at = class {
   constructor(t, e, s) {
     if (this._$cssResult$ = !0, s !== V) throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");
@@ -32,7 +32,7 @@ const mt = (i) => new at(typeof i == "string" ? i : i + "", void 0, V), lt = (i,
 }, $t = (i, t) => {
   if (B) i.adoptedStyleSheets = t.map((e) => e instanceof CSSStyleSheet ? e : e.styleSheet);
   else for (const e of t) {
-    const s = document.createElement("style"), r = H.litNonce;
+    const s = document.createElement("style"), r = M.litNonce;
     r !== void 0 && s.setAttribute("nonce", r), s.textContent = e.cssText, i.appendChild(s);
   }
 }, J = B ? (i) => i : (i) => i instanceof CSSStyleSheet ? ((t) => {
@@ -262,7 +262,7 @@ v.elementStyles = [], v.shadowRootOptions = { mode: "open" }, v[S("elementProper
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const Z = globalThis, X = (i) => i, R = Z.trustedTypes, tt = R ? R.createPolicy("lit-html", { createHTML: (i) => i }) : void 0, ct = "$lit$", m = `lit$${Math.random().toFixed(9).slice(2)}$`, ht = "?" + m, St = `<${ht}>`, y = document, P = () => y.createComment(""), T = (i) => i === null || typeof i != "object" && typeof i != "function", W = Array.isArray, Ct = (i) => W(i) || typeof i?.[Symbol.iterator] == "function", j = `[ 	
+const Z = globalThis, X = (i) => i, R = Z.trustedTypes, tt = R ? R.createPolicy("lit-html", { createHTML: (i) => i }) : void 0, ct = "$lit$", m = `lit$${Math.random().toFixed(9).slice(2)}$`, ht = "?" + m, St = `<${ht}>`, y = document, C = () => y.createComment(""), P = (i) => i === null || typeof i != "object" && typeof i != "function", W = Array.isArray, Ct = (i) => W(i) || typeof i?.[Symbol.iterator] == "function", j = `[ 	
 \f\r]`, E = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g, et = /-->/g, st = />/g, $ = RegExp(`>|${j}(?:([^\\s"'>=/]+)(${j}*=${j}*(?:[^ 	
 \f\r"'\`<>=]|("|')|))|$)`, "g"), it = /'/g, rt = /"/g, dt = /^(?:script|style|textarea|title)$/i, Pt = (i) => (t, ...e) => ({ _$litType$: i, strings: t, values: e }), u = Pt(1), A = Symbol.for("lit-noChange"), h = Symbol.for("lit-nothing"), nt = /* @__PURE__ */ new WeakMap(), _ = y.createTreeWalker(y, 129);
 function pt(i, t) {
@@ -281,28 +281,28 @@ const Tt = (i, t) => {
   }
   return [pt(i, n + (i[e] || "<?>") + (t === 2 ? "</svg>" : t === 3 ? "</math>" : "")), s];
 };
-class O {
+class T {
   constructor({ strings: t, _$litType$: e }, s) {
     let r;
     this.parts = [];
     let n = 0, o = 0;
     const l = t.length - 1, a = this.parts, [d, p] = Tt(t, e);
-    if (this.el = O.createElement(d, s), _.currentNode = this.el.content, e === 2 || e === 3) {
+    if (this.el = T.createElement(d, s), _.currentNode = this.el.content, e === 2 || e === 3) {
       const c = this.el.content.firstChild;
       c.replaceWith(...c.childNodes);
     }
     for (; (r = _.nextNode()) !== null && a.length < l; ) {
       if (r.nodeType === 1) {
         if (r.hasAttributes()) for (const c of r.getAttributeNames()) if (c.endsWith(ct)) {
-          const g = p[o++], f = r.getAttribute(c).split(m), M = /([.?@])?(.*)/.exec(g);
-          a.push({ type: 1, index: n, name: M[2], strings: f, ctor: M[1] === "." ? Dt : M[1] === "?" ? Nt : M[1] === "@" ? Ut : I }), r.removeAttribute(c);
+          const g = p[o++], f = r.getAttribute(c).split(m), U = /([.?@])?(.*)/.exec(g);
+          a.push({ type: 1, index: n, name: U[2], strings: f, ctor: U[1] === "." ? Dt : U[1] === "?" ? Nt : U[1] === "@" ? Ut : I }), r.removeAttribute(c);
         } else c.startsWith(m) && (a.push({ type: 6, index: n }), r.removeAttribute(c));
         if (dt.test(r.tagName)) {
           const c = r.textContent.split(m), g = c.length - 1;
           if (g > 0) {
             r.textContent = R ? R.emptyScript : "";
-            for (let f = 0; f < g; f++) r.append(c[f], P()), _.nextNode(), a.push({ type: 2, index: ++n });
-            r.append(c[g], P());
+            for (let f = 0; f < g; f++) r.append(c[f], C()), _.nextNode(), a.push({ type: 2, index: ++n });
+            r.append(c[g], C());
           }
         }
       } else if (r.nodeType === 8) if (r.data === ht) a.push({ type: 2, index: n });
@@ -321,7 +321,7 @@ class O {
 function w(i, t, e = i, s) {
   if (t === A) return t;
   let r = s !== void 0 ? e._$Co?.[s] : e._$Cl;
-  const n = T(t) ? void 0 : t._$litDirective$;
+  const n = P(t) ? void 0 : t._$litDirective$;
   return r?.constructor !== n && (r?._$AO?.(!1), n === void 0 ? r = void 0 : (r = new n(i), r._$AT(i, e, s)), s !== void 0 ? (e._$Co ??= [])[s] = r : e._$Cl = r), r !== void 0 && (t = w(i, r._$AS(i, t.values), r, s)), t;
 }
 class Ot {
@@ -341,7 +341,7 @@ class Ot {
     for (; a !== void 0; ) {
       if (o === a.index) {
         let d;
-        a.type === 2 ? d = new U(n, n.nextSibling, this, t) : a.type === 1 ? d = new a.ctor(n, a.name, a.strings, this, t) : a.type === 6 && (d = new Mt(n, this, t)), this._$AV.push(d), a = s[++l];
+        a.type === 2 ? d = new N(n, n.nextSibling, this, t) : a.type === 1 ? d = new a.ctor(n, a.name, a.strings, this, t) : a.type === 6 && (d = new Mt(n, this, t)), this._$AV.push(d), a = s[++l];
       }
       o !== a?.index && (n = _.nextNode(), o++);
     }
@@ -352,7 +352,7 @@ class Ot {
     for (const s of this._$AV) s !== void 0 && (s.strings !== void 0 ? (s._$AI(t, s, e), e += s.strings.length - 2) : s._$AI(t[e])), e++;
   }
 }
-class U {
+class N {
   get _$AU() {
     return this._$AM?._$AU ?? this._$Cv;
   }
@@ -371,7 +371,7 @@ class U {
     return this._$AB;
   }
   _$AI(t, e = this) {
-    t = w(this, t, e), T(t) ? t === h || t == null || t === "" ? (this._$AH !== h && this._$AR(), this._$AH = h) : t !== this._$AH && t !== A && this._(t) : t._$litType$ !== void 0 ? this.$(t) : t.nodeType !== void 0 ? this.T(t) : Ct(t) ? this.k(t) : this._(t);
+    t = w(this, t, e), P(t) ? t === h || t == null || t === "" ? (this._$AH !== h && this._$AR(), this._$AH = h) : t !== this._$AH && t !== A && this._(t) : t._$litType$ !== void 0 ? this.$(t) : t.nodeType !== void 0 ? this.T(t) : Ct(t) ? this.k(t) : this._(t);
   }
   O(t) {
     return this._$AA.parentNode.insertBefore(t, this._$AB);
@@ -380,10 +380,10 @@ class U {
     this._$AH !== t && (this._$AR(), this._$AH = this.O(t));
   }
   _(t) {
-    this._$AH !== h && T(this._$AH) ? this._$AA.nextSibling.data = t : this.T(y.createTextNode(t)), this._$AH = t;
+    this._$AH !== h && P(this._$AH) ? this._$AA.nextSibling.data = t : this.T(y.createTextNode(t)), this._$AH = t;
   }
   $(t) {
-    const { values: e, _$litType$: s } = t, r = typeof s == "number" ? this._$AC(t) : (s.el === void 0 && (s.el = O.createElement(pt(s.h, s.h[0]), this.options)), s);
+    const { values: e, _$litType$: s } = t, r = typeof s == "number" ? this._$AC(t) : (s.el === void 0 && (s.el = T.createElement(pt(s.h, s.h[0]), this.options)), s);
     if (this._$AH?._$AD === r) this._$AH.p(e);
     else {
       const n = new Ot(r, this), o = n.u(this.options);
@@ -392,13 +392,13 @@ class U {
   }
   _$AC(t) {
     let e = nt.get(t.strings);
-    return e === void 0 && nt.set(t.strings, e = new O(t)), e;
+    return e === void 0 && nt.set(t.strings, e = new T(t)), e;
   }
   k(t) {
     W(this._$AH) || (this._$AH = [], this._$AR());
     const e = this._$AH;
     let s, r = 0;
-    for (const n of t) r === e.length ? e.push(s = new U(this.O(P()), this.O(P()), this, this.options)) : s = e[r], s._$AI(n), r++;
+    for (const n of t) r === e.length ? e.push(s = new N(this.O(C()), this.O(C()), this, this.options)) : s = e[r], s._$AI(n), r++;
     r < e.length && (this._$AR(s && s._$AB.nextSibling, r), e.length = r);
   }
   _$AR(t = this._$AA.nextSibling, e) {
@@ -424,11 +424,11 @@ class I {
   _$AI(t, e = this, s, r) {
     const n = this.strings;
     let o = !1;
-    if (n === void 0) t = w(this, t, e, 0), o = !T(t) || t !== this._$AH && t !== A, o && (this._$AH = t);
+    if (n === void 0) t = w(this, t, e, 0), o = !P(t) || t !== this._$AH && t !== A, o && (this._$AH = t);
     else {
       const l = t;
       let a, d;
-      for (t = n[0], a = 0; a < n.length - 1; a++) d = w(this, l[s + a], e, a), d === A && (d = this._$AH[a]), o ||= !T(d) || d !== this._$AH[a], d === h ? t = h : t !== h && (t += (d ?? "") + n[a + 1]), this._$AH[a] = d;
+      for (t = n[0], a = 0; a < n.length - 1; a++) d = w(this, l[s + a], e, a), d === A && (d = this._$AH[a]), o ||= !P(d) || d !== this._$AH[a], d === h ? t = h : t !== h && (t += (d ?? "") + n[a + 1]), this._$AH[a] = d;
     }
     o && !r && this.j(t);
   }
@@ -477,13 +477,13 @@ class Mt {
   }
 }
 const Ht = Z.litHtmlPolyfillSupport;
-Ht?.(O, U), (Z.litHtmlVersions ??= []).push("3.3.2");
+Ht?.(T, N), (Z.litHtmlVersions ??= []).push("3.3.2");
 const kt = (i, t, e) => {
   const s = e?.renderBefore ?? t;
   let r = s._$litPart$;
   if (r === void 0) {
     const n = e?.renderBefore ?? null;
-    s._$litPart$ = r = new U(t.insertBefore(P(), n), n, void 0, e ?? {});
+    s._$litPart$ = r = new N(t.insertBefore(C(), n), n, void 0, e ?? {});
   }
   return r._$AI(i), r;
 };
@@ -574,7 +574,7 @@ var jt = Object.defineProperty, Lt = Object.getOwnPropertyDescriptor, x = (i, t,
     (o = i[n]) && (r = (s ? o(t, e, r) : o(r)) || r);
   return s && r && jt(t, e, r), r;
 };
-const C = "custom:intelligent-octopus-slots-card", Bt = [
+const H = "custom:intelligent-octopus-slots-card", Bt = [
   "intelligent_dispatch",
   "intelligent_dispatching",
   "intelligent_dispatching_status",
@@ -680,13 +680,13 @@ const C = "custom:intelligent-octopus-slots-card", Bt = [
     return r.includes("octopus") && r.includes("dispatch");
   })?.entity_id;
 };
-let D = class extends b {
+let O = class extends b {
   static async getConfigElement() {
     return document.createElement("intelligent-octopus-slots-card-editor");
   }
   static getStubConfig(i) {
     return {
-      type: C,
+      type: H,
       title: "Intelligent Octopus Slots",
       show_title: !0,
       dispatching_entity: ft(i)
@@ -786,7 +786,7 @@ let D = class extends b {
     `;
   }
 };
-D.styles = lt`
+O.styles = lt`
     :host {
       display: block;
     }
@@ -1035,14 +1035,14 @@ D.styles = lt`
   `;
 x([
   F({ attribute: !1 })
-], D.prototype, "hass", 2);
+], O.prototype, "hass", 2);
 x([
   gt()
-], D.prototype, "_config", 2);
-D = x([
+], O.prototype, "_config", 2);
+O = x([
   ut("intelligent-octopus-slots-card")
-], D);
-let N = class extends b {
+], O);
+let D = class extends b {
   constructor() {
     super(...arguments), this._computeLabel = (i) => i.label;
   }
@@ -1050,7 +1050,7 @@ let N = class extends b {
     this._config = {
       show_title: !0,
       ...i,
-      type: C
+      type: H
     };
   }
   _valueChanged(i) {
@@ -1058,7 +1058,7 @@ let N = class extends b {
     this._config = {
       ...this._config,
       ...t,
-      type: C
+      type: H
     }, L(this, "config-changed", {
       config: this._config
     });
@@ -1073,7 +1073,7 @@ let N = class extends b {
     }
     this._config = {
       ...this._config,
-      type: C,
+      type: H,
       dispatching_entity: i
     }, L(this, "config-changed", {
       config: this._config
@@ -1095,7 +1095,7 @@ let N = class extends b {
     `;
   }
 };
-N.styles = lt`
+D.styles = lt`
     :host {
       display: block;
     }
@@ -1118,20 +1118,20 @@ N.styles = lt`
   `;
 x([
   F({ attribute: !1 })
-], N.prototype, "hass", 2);
+], D.prototype, "hass", 2);
 x([
   gt()
-], N.prototype, "_config", 2);
-N = x([
+], D.prototype, "_config", 2);
+D = x([
   ut("intelligent-octopus-slots-card-editor")
-], N);
+], D);
 window.customCards = window.customCards || [];
 window.customCards.push({
-  type: C,
-  name: "Intelligent Octopus Slots",
-  description: "A compact card for Octopus intelligent dispatching information."
+  type: "intelligent-octopus-slots-card",
+  name: "Intelligent Octopus Slots Card",
+  description: "Displays Intelligent Octopus charging slots."
 });
 export {
-  D as IntelligentOctopusSlotsCard,
-  N as IntelligentOctopusSlotsCardEditor
+  O as IntelligentOctopusSlotsCard,
+  D as IntelligentOctopusSlotsCardEditor
 };

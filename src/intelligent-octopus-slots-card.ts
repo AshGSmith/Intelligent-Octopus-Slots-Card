@@ -687,7 +687,7 @@ export class IntelligentOctopusSlotsCardEditor extends LitElement implements Lov
 
 window.customCards = window.customCards || [];
 window.customCards.push({
-  type: CARD_TYPE,
-  name: "Intelligent Octopus Slots",
-  description: "A compact card for Octopus intelligent dispatching information.",
+  type: "intelligent-octopus-slots-card",
+  name: "Intelligent Octopus Slots Card",
+  description: "Displays Intelligent Octopus charging slots.",
 });
