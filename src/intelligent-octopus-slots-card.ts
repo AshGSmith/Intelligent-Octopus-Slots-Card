@@ -511,9 +511,9 @@ export class IntelligentOctopusSlotsCard extends LitElement {
 
     .slot-list-condensed {
       flex-wrap: wrap;
-      align-items: flex-start;
+      align-items: center;
       column-gap: 4px;
-      row-gap: 4px;
+      row-gap: 2px;
       width: 100%;
     }
 
@@ -550,9 +550,10 @@ export class IntelligentOctopusSlotsCard extends LitElement {
 
     .slot-chip-condensed {
       width: auto;
-      max-width: 100%;
+      flex: 0 0 auto;
+      max-width: fit-content;
       min-width: 0;
-      padding: 5px 8px;
+      padding: 4px 7px;
       gap: 6px;
     }
 
@@ -564,7 +565,7 @@ export class IntelligentOctopusSlotsCard extends LitElement {
 
     .slot-chip-condensed .slot-times {
       font-size: 0.76rem;
-      line-height: 1.15;
+      line-height: 1.05;
       white-space: normal;
       overflow-wrap: anywhere;
     }
@@ -598,6 +599,11 @@ export class IntelligentOctopusSlotsCard extends LitElement {
 
       .slot-chip {
         width: 100%;
+      }
+
+      .slot-chip-condensed {
+        width: auto;
+        max-width: fit-content;
       }
     }
   `;
