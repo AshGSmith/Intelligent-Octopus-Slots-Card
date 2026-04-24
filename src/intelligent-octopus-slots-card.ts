@@ -470,7 +470,7 @@ export class IntelligentOctopusSlotsCard extends LitElement {
                                       <div class="slot-chip ${isPast ? "past" : ""}">
                                         <div class="slot-times">${formatTimeRange(slot)}</div>
                                         <div class="slot-meta-wrap">
-                                          ${isPast ? html`<span class="past-badge">Past</span>` : nothing}
+                                          ${isPast ? html`<span class="past-badge">Complete</span>` : nothing}
                                           <div class="slot-meta">${formatDuration(slot.startDate, slot.endDate)}</div>
                                         </div>
                                       </div>
@@ -862,13 +862,30 @@ export class IntelligentOctopusSlotsCardEditor extends LitElement implements Lov
 
     .editor-shell {
       display: grid;
-      gap: 16px;
+      gap: 10px;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      overflow-x: hidden;
+    }
+
+    ha-form {
+      display: block;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      overflow: hidden;
     }
 
     .helper-text {
-      margin-top: -6px;
-      font-size: 0.85rem;
+      margin-top: -10px;
+      font-size: 0.76rem;
+      line-height: 1.25;
       color: var(--secondary-text-color);
+      opacity: 0.82;
+      max-width: 100%;
+      min-width: 0;
+      overflow-wrap: anywhere;
     }
 
     .detect-button {
@@ -880,6 +897,34 @@ export class IntelligentOctopusSlotsCardEditor extends LitElement implements Lov
       color: var(--text-primary-color, #fff);
       font: inherit;
       cursor: pointer;
+    }
+
+    @media (max-width: 480px) {
+      :host {
+        display: block;
+        max-width: 100%;
+        min-width: 0;
+        overflow-x: hidden;
+      }
+
+      .editor-shell {
+        gap: 8px;
+      }
+
+      ha-form,
+      .helper-text {
+        max-width: 100%;
+        min-width: 0;
+      }
+
+      .helper-text {
+        margin-top: -12px;
+        font-size: 0.72rem;
+      }
+
+      .detect-button {
+        max-width: 100%;
+      }
     }
   `;
 }
