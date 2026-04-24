@@ -375,14 +375,13 @@ export class IntelligentOctopusSlotsCard extends LitElement {
       includePast: true,
     });
     const now = Date.now();
-    const summarySlots = this._config.show_completed_slots !== false ? allSlots : allSlots.filter((slot) => slot.endDate.getTime() > now);
     const includeCompletedSlots = this._config.condensed_view ? false : this._config.show_completed_slots !== false;
     const slots = includeCompletedSlots ? allSlots : allSlots.filter((slot) => slot.endDate.getTime() > now);
-    const summarySlotGroups = groupSlotsByDate(summarySlots);
+    const summarySlotGroups = groupSlotsByDate(allSlots);
     const durationSummary = getDurationSummary(summarySlotGroups);
-    const slotCount = summarySlots.length;
+    const slotCount = allSlots.length;
     const summaryDate =
-      summarySlotGroups.length === 1 && slotCount ? formatSummaryDate(summarySlots[0].startDate) : undefined;
+      summarySlotGroups.length === 1 && slotCount ? formatSummaryDate(allSlots[0].startDate) : undefined;
     const slotGroups = groupSlotsByDate(slots);
     const title = this._config.title || "Intelligent Octopus Slots";
     const icon = this._config.icon || DEFAULT_ICON;
@@ -421,7 +420,6 @@ export class IntelligentOctopusSlotsCard extends LitElement {
                           ? html`
                               <span class="summary-dot"></span>
                               <span class="duration-alert">
-                                <ha-icon icon="mdi:alert-outline"></ha-icon>
                                 <span>${formatMinutes(durationSummary.longestDayMinutes)} today</span>
                               </span>
                             `
@@ -588,14 +586,6 @@ export class IntelligentOctopusSlotsCard extends LitElement {
       border-radius: 999px;
       background: color-mix(in srgb, var(--warning-color, #f59e0b) 16%, var(--secondary-background-color, transparent));
       color: var(--warning-color, #f59e0b);
-    }
-
-    .duration-alert ha-icon {
-      width: 1em;
-      height: 1em;
-      display: block;
-      flex: 0 0 auto;
-      align-self: center;
     }
 
     .status-pill {
