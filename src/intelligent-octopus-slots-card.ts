@@ -267,7 +267,7 @@ export class IntelligentOctopusSlotsCard extends LitElement {
   @property({ attribute: false }) public hass?: HomeAssistant;
 
   @state() private _config?: IntelligentOctopusSlotsCardConfig;
-  @state() private _showPastSlots = false;
+  @state() private _showPastSlots = true;
 
   public static async getConfigElement(): Promise<LovelaceCardEditor> {
     return document.createElement("intelligent-octopus-slots-card-editor");
@@ -349,7 +349,7 @@ export class IntelligentOctopusSlotsCard extends LitElement {
                 <div class="summary-line">
                   ${slotCount
                     ? html`
-                        ${slotCount} ${this._showPastSlots ? "visible" : "upcoming"} slot${slotCount === 1 ? "" : "s"}
+                        ${slotCount} ${this._showPastSlots ? "scheduled" : "upcoming"} slot${slotCount === 1 ? "" : "s"}
                         ${summaryDate
                           ? html`<span class="summary-dot"></span>${summaryDate}`
                           : html`<span class="summary-dot"></span>${slotGroups.length} scheduled day${slotGroups.length === 1 ? "" : "s"}`}
@@ -360,6 +360,9 @@ export class IntelligentOctopusSlotsCard extends LitElement {
             </div>
 
             <div class="header-actions">
+              <div class="status-pill ${statusIsActive ? "active" : ""}">
+                ${statusText}
+              </div>
               ${showPastToggle
                 ? html`
                     <button
@@ -369,13 +372,10 @@ export class IntelligentOctopusSlotsCard extends LitElement {
                       aria-pressed=${this._showPastSlots ? "true" : "false"}
                     >
                       <ha-icon icon="mdi:history"></ha-icon>
-                      <span>${this._showPastSlots ? "Hide Past" : "Show Past"}</span>
+                      <span>${this._showPastSlots ? "Past On" : "Past Off"}</span>
                     </button>
                   `
                 : nothing}
-              <div class="status-pill ${statusIsActive ? "active" : ""}">
-                ${statusText}
-              </div>
             </div>
           </div>
 
@@ -527,9 +527,10 @@ export class IntelligentOctopusSlotsCard extends LitElement {
     }
 
     .header-actions {
-      display: flex;
-      align-items: center;
-      gap: 6px;
+      display: grid;
+      justify-items: end;
+      align-content: start;
+      gap: 4px;
       flex: 0 0 auto;
     }
 
@@ -577,7 +578,8 @@ export class IntelligentOctopusSlotsCard extends LitElement {
     }
 
     .slot-list-regular {
-      gap: 3px 6px;
+      display: grid;
+      gap: 3px;
     }
 
     .slot-list-condensed {
@@ -612,7 +614,8 @@ export class IntelligentOctopusSlotsCard extends LitElement {
       align-items: center;
       justify-content: space-between;
       gap: 8px;
-      min-width: min(100%, 148px);
+      width: 100%;
+      min-width: 0;
       padding: 4px 10px;
       border-radius: 999px;
       background: var(--secondary-background-color, rgba(127, 127, 127, 0.12));
@@ -702,8 +705,7 @@ export class IntelligentOctopusSlotsCard extends LitElement {
       }
 
       .header-actions {
-        flex-wrap: wrap;
-        justify-content: flex-end;
+        justify-items: end;
       }
     }
   `;

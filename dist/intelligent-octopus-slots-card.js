@@ -710,7 +710,7 @@ const R = "custom:intelligent-octopus-slots-card", ht = "mdi:ev-station", Kt = [
 };
 let P = class extends S {
   constructor() {
-    super(...arguments), this._showPastSlots = !1;
+    super(...arguments), this._showPastSlots = !0;
   }
   static async getConfigElement() {
     return document.createElement("intelligent-octopus-slots-card-editor");
@@ -759,7 +759,7 @@ let P = class extends S {
                 ${this._config.show_title ? u`<h2>${l}</h2>` : h}
                 <div class="summary-line">
                   ${n ? u`
-                        ${n} ${this._showPastSlots ? "visible" : "upcoming"} slot${n === 1 ? "" : "s"}
+                        ${n} ${this._showPastSlots ? "scheduled" : "upcoming"} slot${n === 1 ? "" : "s"}
                         ${r ? u`<span class="summary-dot"></span>${r}` : u`<span class="summary-dot"></span>${o.length} scheduled day${o.length === 1 ? "" : "s"}`}
                       ` : u`No charging slots scheduled`}
                 </div>
@@ -767,6 +767,9 @@ let P = class extends S {
             </div>
 
             <div class="header-actions">
+              <div class="status-pill ${f ? "active" : ""}">
+                ${c}
+              </div>
               ${x ? u`
                     <button
                       class="history-toggle ${this._showPastSlots ? "active" : ""}"
@@ -775,12 +778,9 @@ let P = class extends S {
                       aria-pressed=${this._showPastSlots ? "true" : "false"}
                     >
                       <ha-icon icon="mdi:history"></ha-icon>
-                      <span>${this._showPastSlots ? "Hide Past" : "Show Past"}</span>
+                      <span>${this._showPastSlots ? "Past On" : "Past Off"}</span>
                     </button>
                   ` : h}
-              <div class="status-pill ${f ? "active" : ""}">
-                ${c}
-              </div>
             </div>
           </div>
 
@@ -925,9 +925,10 @@ P.styles = ft`
     }
 
     .header-actions {
-      display: flex;
-      align-items: center;
-      gap: 6px;
+      display: grid;
+      justify-items: end;
+      align-content: start;
+      gap: 4px;
       flex: 0 0 auto;
     }
 
@@ -975,7 +976,8 @@ P.styles = ft`
     }
 
     .slot-list-regular {
-      gap: 3px 6px;
+      display: grid;
+      gap: 3px;
     }
 
     .slot-list-condensed {
@@ -1010,7 +1012,8 @@ P.styles = ft`
       align-items: center;
       justify-content: space-between;
       gap: 8px;
-      min-width: min(100%, 148px);
+      width: 100%;
+      min-width: 0;
       padding: 4px 10px;
       border-radius: 999px;
       background: var(--secondary-background-color, rgba(127, 127, 127, 0.12));
@@ -1100,8 +1103,7 @@ P.styles = ft`
       }
 
       .header-actions {
-        flex-wrap: wrap;
-        justify-content: flex-end;
+        justify-items: end;
       }
     }
   `;
