@@ -375,12 +375,15 @@ export class IntelligentOctopusSlotsCard extends LitElement {
       includePast: true,
     });
     const now = Date.now();
+    const summarySlots = this._config.show_completed_slots !== false ? allSlots : allSlots.filter((slot) => slot.endDate.getTime() > now);
     const includeCompletedSlots = this._config.condensed_view ? false : this._config.show_completed_slots !== false;
     const slots = includeCompletedSlots ? allSlots : allSlots.filter((slot) => slot.endDate.getTime() > now);
+    const summarySlotGroups = groupSlotsByDate(summarySlots);
+    const durationSummary = getDurationSummary(summarySlotGroups);
+    const slotCount = summarySlots.length;
+    const summaryDate =
+      summarySlotGroups.length === 1 && slotCount ? formatSummaryDate(summarySlots[0].startDate) : undefined;
     const slotGroups = groupSlotsByDate(slots);
-    const durationSummary = getDurationSummary(slotGroups);
-    const slotCount = slots.length;
-    const summaryDate = slotGroups.length === 1 && slotCount ? formatSummaryDate(slots[0].startDate) : undefined;
     const title = this._config.title || "Intelligent Octopus Slots";
     const icon = this._config.icon || DEFAULT_ICON;
     const showCondensedDate = slotGroups.length > 1;
@@ -391,6 +394,8 @@ export class IntelligentOctopusSlotsCard extends LitElement {
       : false;
     const statusText = this._config.test_data ? (isActiveSampleSlot ? "on" : "off") : entity?.state ?? "unknown";
     const statusIsActive = this._config.test_data ? isActiveSampleSlot : entity?.state === "on";
+    // Long-day warnings are based on any single day's generated slot total.
+    // Exactly 6h does not warn; only totals greater than 6h trigger the badge.
     const hasLongDay = durationSummary.longestDayMinutes > 360;
 
     return html`
@@ -411,7 +416,7 @@ export class IntelligentOctopusSlotsCard extends LitElement {
                         <span class="duration-total">${formatSummaryDuration(durationSummary)}</span>
                         ${summaryDate
                           ? html`<span class="summary-dot"></span>${summaryDate}`
-                          : html`<span class="summary-dot"></span>${slotGroups.length} scheduled day${slotGroups.length === 1 ? "" : "s"}`}
+                          : html`<span class="summary-dot"></span>${summarySlotGroups.length} scheduled day${summarySlotGroups.length === 1 ? "" : "s"}`}
                         ${hasLongDay
                           ? html`
                               <span class="summary-dot"></span>
@@ -586,10 +591,11 @@ export class IntelligentOctopusSlotsCard extends LitElement {
     }
 
     .duration-alert ha-icon {
-      width: 12px;
-      height: 12px;
+      width: 1em;
+      height: 1em;
       display: block;
       flex: 0 0 auto;
+      align-self: center;
     }
 
     .status-pill {
