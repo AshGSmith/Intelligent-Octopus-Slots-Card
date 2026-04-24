@@ -47,6 +47,13 @@ const editorSchema: CardHelpersFormSchema[] = [
     },
   },
   {
+    name: "test_data",
+    label: "Test Data",
+    selector: {
+      boolean: {},
+    },
+  },
+  {
     name: "dispatching_entity",
     label: "Intelligent Dispatching Entity",
     selector: {
@@ -185,6 +192,25 @@ const formatDuration = (startDate: Date, endDate: Date): string => {
   return remainder ? `${hours}h ${remainder}m` : `${hours}h`;
 };
 
+// TEMP TEST DATA - remove before stable release
+const createSamplePlannedDispatches = (): Array<{ start: string; end: string }> => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const day = now.getDate();
+  const samples: Array<[number, number, number, number]> = [
+    [0, 30, 2, 0],
+    [3, 0, 4, 30],
+    [6, 0, 7, 30],
+    [23, 0, 23, 30],
+  ];
+
+  return samples.map(([startHour, startMinute, endHour, endMinute]) => ({
+    start: new Date(year, month, day, startHour, startMinute, 0, 0).toISOString(),
+    end: new Date(year, month, day, endHour, endMinute, 0, 0).toISOString(),
+  }));
+};
+
 const detectDispatchingEntity = (hass?: HomeAssistant): string | undefined => {
   if (!hass) {
     return undefined;
@@ -237,6 +263,7 @@ export class IntelligentOctopusSlotsCard extends LitElement {
       show_title: true,
       icon: DEFAULT_ICON,
       condensed_view: false,
+      test_data: false,
       dispatching_entity: detectDispatchingEntity(hass),
     };
   }
@@ -262,13 +289,24 @@ export class IntelligentOctopusSlotsCard extends LitElement {
     }
 
     const entity = this._config.dispatching_entity ? this.hass?.states[this._config.dispatching_entity] : undefined;
-    const slots = parsePlannedDispatches(entity?.attributes.planned_dispatches);
+    const rawPlannedDispatches = this._config.test_data
+      ? createSamplePlannedDispatches()
+      : entity?.attributes.planned_dispatches;
+    const slots = parsePlannedDispatches(rawPlannedDispatches);
     const slotGroups = groupSlotsByDate(slots);
     const slotCount = slots.length;
     const summaryDate = slotGroups.length === 1 && slotCount ? formatSummaryDate(slots[0].startDate) : undefined;
     const title = this._config.title || "Intelligent Octopus Slots";
     const icon = this._config.icon || DEFAULT_ICON;
     const showCondensedDate = slotGroups.length > 1;
+    const isActiveSampleSlot = this._config.test_data
+      ? slots.some((slot) => {
+          const now = Date.now();
+          return slot.startDate.getTime() <= now && now < slot.endDate.getTime();
+        })
+      : false;
+    const statusText = this._config.test_data ? (isActiveSampleSlot ? "on" : "off") : entity?.state ?? "unknown";
+    const statusIsActive = this._config.test_data ? isActiveSampleSlot : entity?.state === "on";
 
     return html`
       <ha-card>
@@ -293,8 +331,8 @@ export class IntelligentOctopusSlotsCard extends LitElement {
               </div>
             </div>
 
-            <div class="status-pill ${entity?.state === "on" ? "active" : ""}">
-              ${entity?.state ?? "unknown"}
+            <div class="status-pill ${statusIsActive ? "active" : ""}">
+              ${statusText}
             </div>
           </div>
 
@@ -606,6 +644,7 @@ export class IntelligentOctopusSlotsCardEditor extends LitElement implements Lov
           @value-changed=${this._valueChanged}
         ></ha-form>
 
+        <div class="helper-text">Temporary testing option. Uses sample slots instead of the selected entity.</div>
         <button class="detect-button" type="button" @click=${this._autoDetect}>Auto-detect</button>
       </div>
     `;
@@ -619,6 +658,12 @@ export class IntelligentOctopusSlotsCardEditor extends LitElement implements Lov
     .editor-shell {
       display: grid;
       gap: 16px;
+    }
+
+    .helper-text {
+      margin-top: -6px;
+      font-size: 0.85rem;
+      color: var(--secondary-text-color);
     }
 
     .detect-button {
