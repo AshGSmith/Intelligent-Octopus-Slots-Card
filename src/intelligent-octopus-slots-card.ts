@@ -85,6 +85,12 @@ interface PlannedDispatchGroup {
   slots: PlannedDispatchSlot[];
 }
 
+interface DurationSummary {
+  totalMinutes: number;
+  longestDayMinutes: number;
+  dayCount: number;
+}
+
 const parsePlannedDispatches = (value: unknown, options?: { includePast?: boolean }): PlannedDispatchSlot[] => {
   if (!Array.isArray(value)) {
     return [];
@@ -183,13 +189,47 @@ const formatCondensedDate = (value: Date): string =>
 
 const formatDuration = (startDate: Date, endDate: Date): string => {
   const minutes = Math.max(0, Math.round((endDate.getTime() - startDate.getTime()) / 60000));
-  if (minutes < 60) {
-    return `${minutes}m`;
+  return formatMinutes(minutes);
+};
+
+const formatMinutes = (minutes: number): string => {
+  const safeMinutes = Math.max(0, Math.round(minutes));
+  if (safeMinutes < 60) {
+    return `${safeMinutes}m`;
   }
 
-  const hours = Math.floor(minutes / 60);
-  const remainder = minutes % 60;
+  const hours = Math.floor(safeMinutes / 60);
+  const remainder = safeMinutes % 60;
   return remainder ? `${hours}h ${remainder}m` : `${hours}h`;
+};
+
+const getDurationSummary = (slotGroups: PlannedDispatchGroup[]): DurationSummary => {
+  let totalMinutes = 0;
+  let longestDayMinutes = 0;
+
+  for (const group of slotGroups) {
+    const dayMinutes = group.slots.reduce(
+      (sum, slot) => sum + Math.max(0, Math.round((slot.endDate.getTime() - slot.startDate.getTime()) / 60000)),
+      0,
+    );
+
+    totalMinutes += dayMinutes;
+    longestDayMinutes = Math.max(longestDayMinutes, dayMinutes);
+  }
+
+  return {
+    totalMinutes,
+    longestDayMinutes,
+    dayCount: slotGroups.length,
+  };
+};
+
+const formatSummaryDuration = (summary: DurationSummary): string => {
+  if (summary.dayCount <= 1) {
+    return formatMinutes(summary.totalMinutes);
+  }
+
+  return `${formatMinutes(summary.totalMinutes)} total`;
 };
 
 // TEMP TEST DATA - remove before stable release
@@ -320,6 +360,7 @@ export class IntelligentOctopusSlotsCard extends LitElement {
       ? allSlots
       : allSlots.filter((slot) => slot.endDate.getTime() > Date.now());
     const slotGroups = groupSlotsByDate(slots);
+    const durationSummary = getDurationSummary(slotGroups);
     const slotCount = slots.length;
     const summaryDate = slotGroups.length === 1 && slotCount ? formatSummaryDate(slots[0].startDate) : undefined;
     const title = this._config.title || "Intelligent Octopus Slots";
@@ -333,8 +374,7 @@ export class IntelligentOctopusSlotsCard extends LitElement {
       : false;
     const statusText = this._config.test_data ? (isActiveSampleSlot ? "on" : "off") : entity?.state ?? "unknown";
     const statusIsActive = this._config.test_data ? isActiveSampleSlot : entity?.state === "on";
-    const hasPastSlots = allSlots.some((slot) => slot.endDate.getTime() <= Date.now());
-    const showPastToggle = hasPastSlots && !this._config.test_data;
+    const hasLongDay = durationSummary.longestDayMinutes > 360;
 
     return html`
       <ha-card>
@@ -349,10 +389,21 @@ export class IntelligentOctopusSlotsCard extends LitElement {
                 <div class="summary-line">
                   ${slotCount
                     ? html`
-                        ${slotCount} ${this._showPastSlots ? "scheduled" : "upcoming"} slot${slotCount === 1 ? "" : "s"}
+                        <span>${slotCount} ${this._showPastSlots ? "scheduled" : "upcoming"} slot${slotCount === 1 ? "" : "s"}</span>
+                        <span class="summary-dot"></span>
+                        <span class="duration-pill ${hasLongDay ? "alert" : ""}">
+                          ${hasLongDay ? html`<ha-icon icon="mdi:alert-outline"></ha-icon>` : nothing}
+                          <span>${formatSummaryDuration(durationSummary)}</span>
+                        </span>
                         ${summaryDate
                           ? html`<span class="summary-dot"></span>${summaryDate}`
                           : html`<span class="summary-dot"></span>${slotGroups.length} scheduled day${slotGroups.length === 1 ? "" : "s"}`}
+                        ${hasLongDay
+                          ? html`
+                              <span class="summary-dot"></span>
+                              <span class="duration-alert">Long day ${formatMinutes(durationSummary.longestDayMinutes)}</span>
+                            `
+                          : nothing}
                       `
                     : html`No charging slots scheduled`}
                 </div>
@@ -363,7 +414,7 @@ export class IntelligentOctopusSlotsCard extends LitElement {
               <div class="status-pill ${statusIsActive ? "active" : ""}">
                 ${statusText}
               </div>
-              ${showPastToggle
+              ${!this._config.test_data
                 ? html`
                     <button
                       class="history-toggle ${this._showPastSlots ? "active" : ""}"
@@ -515,6 +566,31 @@ export class IntelligentOctopusSlotsCard extends LitElement {
       opacity: 0.5;
     }
 
+    .duration-pill,
+    .duration-alert {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 7px;
+      border-radius: 999px;
+      background: var(--secondary-background-color, rgba(127, 127, 127, 0.12));
+      color: var(--secondary-text-color);
+      line-height: 1.1;
+      white-space: nowrap;
+    }
+
+    .duration-pill.alert,
+    .duration-alert {
+      background: color-mix(in srgb, var(--warning-color, #f59e0b) 16%, var(--secondary-background-color, transparent));
+      color: var(--warning-color, #f59e0b);
+    }
+
+    .duration-pill ha-icon {
+      width: 13px;
+      height: 13px;
+      display: block;
+    }
+
     .status-pill {
       padding: 5px 8px;
       border-radius: 999px;
@@ -580,6 +656,7 @@ export class IntelligentOctopusSlotsCard extends LitElement {
     .slot-list-regular {
       display: grid;
       gap: 3px;
+      padding-right: 2px;
     }
 
     .slot-list-condensed {
@@ -610,6 +687,7 @@ export class IntelligentOctopusSlotsCard extends LitElement {
     }
 
     .slot-chip {
+      box-sizing: border-box;
       display: flex;
       align-items: center;
       justify-content: space-between;
