@@ -17,7 +17,7 @@ const AUTO_DETECT_PATTERNS = [
   "octopus_intelligent_dispatch",
 ];
 
-const editorSchema: CardHelpersFormSchema[] = [
+const primaryEditorSchema: CardHelpersFormSchema[] = [
   {
     name: "title",
     label: "Title",
@@ -39,6 +39,9 @@ const editorSchema: CardHelpersFormSchema[] = [
       icon: {},
     },
   },
+];
+
+const condensedEditorSchema: CardHelpersFormSchema[] = [
   {
     name: "condensed_view",
     label: "Condensed View",
@@ -46,6 +49,19 @@ const editorSchema: CardHelpersFormSchema[] = [
       boolean: {},
     },
   },
+];
+
+const completedSlotsEditorSchema: CardHelpersFormSchema[] = [
+  {
+    name: "show_completed_slots",
+    label: "Show Completed Slots",
+    selector: {
+      boolean: {},
+    },
+  },
+];
+
+const testDataEditorSchema: CardHelpersFormSchema[] = [
   {
     name: "test_data",
     label: "Test Data",
@@ -53,6 +69,9 @@ const editorSchema: CardHelpersFormSchema[] = [
       boolean: {},
     },
   },
+];
+
+const entityEditorSchema: CardHelpersFormSchema[] = [
   {
     name: "dispatching_entity",
     label: "Intelligent Dispatching Entity",
@@ -254,16 +273,18 @@ const createSamplePlannedDispatches = (): Array<{ start: string; end: string }> 
   const year = now.getFullYear();
   const month = now.getMonth();
   const day = now.getDate();
-  const samples: Array<[number, number, number, number]> = [
-    [0, 30, 2, 0],
-    [3, 0, 4, 30],
-    [6, 0, 7, 30],
-    [23, 0, 23, 30],
+  const samples: Array<[number, number, number, number, number]> = [
+    [0, 30, 2, 30, 0],
+    [3, 0, 5, 0, 0],
+    [6, 0, 8, 0, 0],
+    [23, 0, 0, 0, 1],
+    [0, 30, 2, 0, 1],
+    [3, 0, 4, 30, 1],
   ];
 
-  return samples.map(([startHour, startMinute, endHour, endMinute]) => ({
-    start: toLocalIsoString(new Date(year, month, day, startHour, startMinute, 0, 0)),
-    end: toLocalIsoString(new Date(year, month, day, endHour, endMinute, 0, 0)),
+  return samples.map(([startHour, startMinute, endHour, endMinute, dayOffset]) => ({
+    start: toLocalIsoString(new Date(year, month, day + dayOffset - (endHour === 0 && endMinute === 0 && dayOffset === 1 ? 1 : 0), startHour, startMinute, 0, 0)),
+    end: toLocalIsoString(new Date(year, month, day + dayOffset, endHour, endMinute, 0, 0)),
   }));
 };
 
@@ -307,7 +328,6 @@ export class IntelligentOctopusSlotsCard extends LitElement {
   @property({ attribute: false }) public hass?: HomeAssistant;
 
   @state() private _config?: IntelligentOctopusSlotsCardConfig;
-  @state() private _showPastSlots = true;
 
   public static async getConfigElement(): Promise<LovelaceCardEditor> {
     return document.createElement("intelligent-octopus-slots-card-editor");
@@ -320,6 +340,7 @@ export class IntelligentOctopusSlotsCard extends LitElement {
       show_title: true,
       icon: DEFAULT_ICON,
       condensed_view: false,
+      show_completed_slots: true,
       test_data: false,
       dispatching_entity: detectDispatchingEntity(hass),
     };
@@ -332,12 +353,9 @@ export class IntelligentOctopusSlotsCard extends LitElement {
 
     this._config = {
       show_title: true,
+      show_completed_slots: true,
       ...config,
     };
-  }
-
-  private _togglePastSlots(): void {
-    this._showPastSlots = !this._showPastSlots;
   }
 
   public getCardSize(): number {
@@ -356,9 +374,9 @@ export class IntelligentOctopusSlotsCard extends LitElement {
     const allSlots = parsePlannedDispatches(rawPlannedDispatches, {
       includePast: true,
     });
-    const slots = this._config.test_data || this._showPastSlots
-      ? allSlots
-      : allSlots.filter((slot) => slot.endDate.getTime() > Date.now());
+    const now = Date.now();
+    const includeCompletedSlots = this._config.condensed_view ? false : this._config.show_completed_slots !== false;
+    const slots = includeCompletedSlots ? allSlots : allSlots.filter((slot) => slot.endDate.getTime() > now);
     const slotGroups = groupSlotsByDate(slots);
     const durationSummary = getDurationSummary(slotGroups);
     const slotCount = slots.length;
@@ -368,7 +386,6 @@ export class IntelligentOctopusSlotsCard extends LitElement {
     const showCondensedDate = slotGroups.length > 1;
     const isActiveSampleSlot = this._config.test_data
       ? allSlots.some((slot) => {
-          const now = Date.now();
           return slot.startDate.getTime() <= now && now < slot.endDate.getTime();
         })
       : false;
@@ -389,7 +406,7 @@ export class IntelligentOctopusSlotsCard extends LitElement {
                 <div class="summary-line">
                   ${slotCount
                     ? html`
-                        <span>${slotCount} ${this._showPastSlots ? "scheduled" : "upcoming"} slot${slotCount === 1 ? "" : "s"}</span>
+                        <span>${slotCount} slot${slotCount === 1 ? "" : "s"}</span>
                         <span class="summary-dot"></span>
                         <span class="duration-pill ${hasLongDay ? "alert" : ""}">
                           ${hasLongDay ? html`<ha-icon icon="mdi:alert-outline"></ha-icon>` : nothing}
@@ -410,23 +427,8 @@ export class IntelligentOctopusSlotsCard extends LitElement {
               </div>
             </div>
 
-            <div class="header-actions">
-              <div class="status-pill ${statusIsActive ? "active" : ""}">
-                ${statusText}
-              </div>
-              ${!this._config.test_data
-                ? html`
-                    <button
-                      class="history-toggle ${this._showPastSlots ? "active" : ""}"
-                      type="button"
-                      @click=${this._togglePastSlots}
-                      aria-pressed=${this._showPastSlots ? "true" : "false"}
-                    >
-                      <ha-icon icon="mdi:history"></ha-icon>
-                      <span>${this._showPastSlots ? "Past On" : "Past Off"}</span>
-                    </button>
-                  `
-                : nothing}
+            <div class="status-pill ${statusIsActive ? "active" : ""}">
+              ${statusText}
             </div>
           </div>
 
@@ -459,7 +461,7 @@ export class IntelligentOctopusSlotsCard extends LitElement {
                                 <div class="slot-list slot-list-regular">
                                   ${group.slots.map(
                                     (slot) => {
-                                      const isPast = slot.endDate.getTime() <= Date.now();
+                                      const isPast = slot.endDate.getTime() <= now;
 
                                       return html`
                                       <div class="slot-chip ${isPast ? "past" : ""}">
@@ -600,42 +602,7 @@ export class IntelligentOctopusSlotsCard extends LitElement {
       background: var(--secondary-background-color, rgba(127, 127, 127, 0.12));
       color: var(--secondary-text-color);
       white-space: nowrap;
-    }
-
-    .header-actions {
-      display: grid;
-      justify-items: end;
-      align-content: start;
-      gap: 4px;
       flex: 0 0 auto;
-    }
-
-    .history-toggle {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      border: 0;
-      border-radius: 999px;
-      padding: 5px 8px;
-      background: var(--secondary-background-color, rgba(127, 127, 127, 0.12));
-      color: var(--secondary-text-color);
-      font: inherit;
-      font-size: 0.68rem;
-      font-weight: 600;
-      line-height: 1;
-      white-space: nowrap;
-      cursor: pointer;
-    }
-
-    .history-toggle ha-icon {
-      width: 14px;
-      height: 14px;
-      display: block;
-    }
-
-    .history-toggle.active {
-      color: var(--primary-text-color);
-      background: color-mix(in srgb, var(--primary-color) 16%, var(--secondary-background-color, transparent));
     }
 
     .status-pill.active {
@@ -781,10 +748,6 @@ export class IntelligentOctopusSlotsCard extends LitElement {
         width: auto;
         max-width: fit-content;
       }
-
-      .header-actions {
-        justify-items: end;
-      }
     }
   `;
 }
@@ -798,6 +761,7 @@ export class IntelligentOctopusSlotsCardEditor extends LitElement implements Lov
   public setConfig(config: IntelligentOctopusSlotsCardConfig): void {
     this._config = {
       show_title: true,
+      show_completed_slots: true,
       ...config,
       type: CARD_TYPE,
     };
@@ -848,12 +812,49 @@ export class IntelligentOctopusSlotsCardEditor extends LitElement implements Lov
         <ha-form
           .hass=${this.hass}
           .data=${this._config}
-          .schema=${editorSchema}
+          .schema=${primaryEditorSchema}
+          .computeLabel=${this._computeLabel}
+          @value-changed=${this._valueChanged}
+        ></ha-form>
+
+        <ha-form
+          .hass=${this.hass}
+          .data=${this._config}
+          .schema=${condensedEditorSchema}
+          .computeLabel=${this._computeLabel}
+          @value-changed=${this._valueChanged}
+        ></ha-form>
+
+        <div class="helper-text">Displays slots in a more compact inline layout.</div>
+
+        <ha-form
+          .hass=${this.hass}
+          .data=${this._config}
+          .schema=${completedSlotsEditorSchema}
+          .computeLabel=${this._computeLabel}
+          @value-changed=${this._valueChanged}
+        ></ha-form>
+
+        <div class="helper-text">Completed slots will not be shown in the condensed view</div>
+
+        <ha-form
+          .hass=${this.hass}
+          .data=${this._config}
+          .schema=${testDataEditorSchema}
           .computeLabel=${this._computeLabel}
           @value-changed=${this._valueChanged}
         ></ha-form>
 
         <div class="helper-text">Temporary testing option. Uses sample slots instead of the selected entity.</div>
+
+        <ha-form
+          .hass=${this.hass}
+          .data=${this._config}
+          .schema=${entityEditorSchema}
+          .computeLabel=${this._computeLabel}
+          @value-changed=${this._valueChanged}
+        ></ha-form>
+
         <button class="detect-button" type="button" @click=${this._autoDetect}>Auto-detect</button>
       </div>
     `;
