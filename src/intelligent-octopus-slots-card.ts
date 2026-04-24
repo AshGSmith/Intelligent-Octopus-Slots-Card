@@ -267,6 +267,7 @@ export class IntelligentOctopusSlotsCard extends LitElement {
   @property({ attribute: false }) public hass?: HomeAssistant;
 
   @state() private _config?: IntelligentOctopusSlotsCardConfig;
+  @state() private _showPastSlots = false;
 
   public static async getConfigElement(): Promise<LovelaceCardEditor> {
     return document.createElement("intelligent-octopus-slots-card-editor");
@@ -295,6 +296,10 @@ export class IntelligentOctopusSlotsCard extends LitElement {
     };
   }
 
+  private _togglePastSlots(): void {
+    this._showPastSlots = !this._showPastSlots;
+  }
+
   public getCardSize(): number {
     return 2;
   }
@@ -308,9 +313,12 @@ export class IntelligentOctopusSlotsCard extends LitElement {
     const rawPlannedDispatches = this._config.test_data
       ? createSamplePlannedDispatches()
       : entity?.attributes.planned_dispatches;
-    const slots = parsePlannedDispatches(rawPlannedDispatches, {
-      includePast: this._config.test_data,
+    const allSlots = parsePlannedDispatches(rawPlannedDispatches, {
+      includePast: true,
     });
+    const slots = this._config.test_data || this._showPastSlots
+      ? allSlots
+      : allSlots.filter((slot) => slot.endDate.getTime() > Date.now());
     const slotGroups = groupSlotsByDate(slots);
     const slotCount = slots.length;
     const summaryDate = slotGroups.length === 1 && slotCount ? formatSummaryDate(slots[0].startDate) : undefined;
@@ -318,13 +326,15 @@ export class IntelligentOctopusSlotsCard extends LitElement {
     const icon = this._config.icon || DEFAULT_ICON;
     const showCondensedDate = slotGroups.length > 1;
     const isActiveSampleSlot = this._config.test_data
-      ? slots.some((slot) => {
+      ? allSlots.some((slot) => {
           const now = Date.now();
           return slot.startDate.getTime() <= now && now < slot.endDate.getTime();
         })
       : false;
     const statusText = this._config.test_data ? (isActiveSampleSlot ? "on" : "off") : entity?.state ?? "unknown";
     const statusIsActive = this._config.test_data ? isActiveSampleSlot : entity?.state === "on";
+    const hasPastSlots = allSlots.some((slot) => slot.endDate.getTime() <= Date.now());
+    const showPastToggle = hasPastSlots && !this._config.test_data;
 
     return html`
       <ha-card>
@@ -339,7 +349,7 @@ export class IntelligentOctopusSlotsCard extends LitElement {
                 <div class="summary-line">
                   ${slotCount
                     ? html`
-                        ${slotCount} upcoming slot${slotCount === 1 ? "" : "s"}
+                        ${slotCount} ${this._showPastSlots ? "visible" : "upcoming"} slot${slotCount === 1 ? "" : "s"}
                         ${summaryDate
                           ? html`<span class="summary-dot"></span>${summaryDate}`
                           : html`<span class="summary-dot"></span>${slotGroups.length} scheduled day${slotGroups.length === 1 ? "" : "s"}`}
@@ -349,8 +359,23 @@ export class IntelligentOctopusSlotsCard extends LitElement {
               </div>
             </div>
 
-            <div class="status-pill ${statusIsActive ? "active" : ""}">
-              ${statusText}
+            <div class="header-actions">
+              ${showPastToggle
+                ? html`
+                    <button
+                      class="history-toggle ${this._showPastSlots ? "active" : ""}"
+                      type="button"
+                      @click=${this._togglePastSlots}
+                      aria-pressed=${this._showPastSlots ? "true" : "false"}
+                    >
+                      <ha-icon icon="mdi:history"></ha-icon>
+                      <span>${this._showPastSlots ? "Hide Past" : "Show Past"}</span>
+                    </button>
+                  `
+                : nothing}
+              <div class="status-pill ${statusIsActive ? "active" : ""}">
+                ${statusText}
+              </div>
             </div>
           </div>
 
@@ -380,14 +405,21 @@ export class IntelligentOctopusSlotsCard extends LitElement {
                             (group) => html`
                               <section class="slot-group" aria-label=${group.label}>
                                 ${slotGroups.length > 1 ? html`<div class="group-label">${group.label}</div>` : nothing}
-                                <div class="slot-list">
+                                <div class="slot-list slot-list-regular">
                                   ${group.slots.map(
-                                    (slot) => html`
-                                      <div class="slot-chip">
+                                    (slot) => {
+                                      const isPast = slot.endDate.getTime() <= Date.now();
+
+                                      return html`
+                                      <div class="slot-chip ${isPast ? "past" : ""}">
                                         <div class="slot-times">${formatTimeRange(slot)}</div>
-                                        <div class="slot-meta">${formatDuration(slot.startDate, slot.endDate)}</div>
+                                        <div class="slot-meta-wrap">
+                                          ${isPast ? html`<span class="past-badge">Past</span>` : nothing}
+                                          <div class="slot-meta">${formatDuration(slot.startDate, slot.endDate)}</div>
+                                        </div>
                                       </div>
-                                    `,
+                                    `;
+                                    },
                                   )}
                                 </div>
                               </section>
@@ -494,6 +526,41 @@ export class IntelligentOctopusSlotsCard extends LitElement {
       white-space: nowrap;
     }
 
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex: 0 0 auto;
+    }
+
+    .history-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      border: 0;
+      border-radius: 999px;
+      padding: 5px 8px;
+      background: var(--secondary-background-color, rgba(127, 127, 127, 0.12));
+      color: var(--secondary-text-color);
+      font: inherit;
+      font-size: 0.68rem;
+      font-weight: 600;
+      line-height: 1;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+
+    .history-toggle ha-icon {
+      width: 14px;
+      height: 14px;
+      display: block;
+    }
+
+    .history-toggle.active {
+      color: var(--primary-text-color);
+      background: color-mix(in srgb, var(--primary-color) 16%, var(--secondary-background-color, transparent));
+    }
+
     .status-pill.active {
       background: color-mix(in srgb, var(--success-color, #43a047) 16%, var(--secondary-background-color, transparent));
       color: var(--success-color, #43a047);
@@ -509,6 +576,10 @@ export class IntelligentOctopusSlotsCard extends LitElement {
       gap: 6px;
     }
 
+    .slot-list-regular {
+      gap: 3px 6px;
+    }
+
     .slot-list-condensed {
       flex-wrap: wrap;
       align-items: center;
@@ -519,12 +590,12 @@ export class IntelligentOctopusSlotsCard extends LitElement {
 
     .slot-groups {
       display: grid;
-      gap: 8px;
+      gap: 4px;
     }
 
     .slot-group {
       display: grid;
-      gap: 6px;
+      gap: 3px;
     }
 
     .group-label {
@@ -542,10 +613,15 @@ export class IntelligentOctopusSlotsCard extends LitElement {
       justify-content: space-between;
       gap: 8px;
       min-width: min(100%, 148px);
-      padding: 7px 10px;
+      padding: 4px 10px;
       border-radius: 999px;
       background: var(--secondary-background-color, rgba(127, 127, 127, 0.12));
       color: var(--primary-text-color);
+    }
+
+    .slot-chip.past {
+      opacity: 0.68;
+      color: var(--secondary-text-color);
     }
 
     .slot-chip-condensed {
@@ -582,6 +658,25 @@ export class IntelligentOctopusSlotsCard extends LitElement {
       white-space: nowrap;
     }
 
+    .slot-meta-wrap {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .past-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 5px;
+      border-radius: 999px;
+      font-size: 0.6rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      color: var(--secondary-text-color);
+      background: color-mix(in srgb, var(--secondary-text-color) 10%, transparent);
+    }
+
     @media (max-width: 480px) {
       .header {
         align-items: flex-start;
@@ -604,6 +699,11 @@ export class IntelligentOctopusSlotsCard extends LitElement {
       .slot-chip-condensed {
         width: auto;
         max-width: fit-content;
+      }
+
+      .header-actions {
+        flex-wrap: wrap;
+        justify-content: flex-end;
       }
     }
   `;
