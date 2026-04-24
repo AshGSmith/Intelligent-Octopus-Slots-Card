@@ -27,6 +27,7 @@ export interface IntelligentOctopusSlotsCardConfig {
   title?: string;
   show_title?: boolean;
   icon?: string;
+  condensed_view?: boolean;
   dispatching_entity?: string;
 }
 

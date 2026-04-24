@@ -40,6 +40,13 @@ const editorSchema: CardHelpersFormSchema[] = [
     },
   },
   {
+    name: "condensed_view",
+    label: "Condensed View",
+    selector: {
+      boolean: {},
+    },
+  },
+  {
     name: "dispatching_entity",
     label: "Intelligent Dispatching Entity",
     selector: {
@@ -161,6 +168,12 @@ const groupSlotsByDate = (slots: PlannedDispatchSlot[]): PlannedDispatchGroup[] 
 
 const formatTimeRange = (slot: PlannedDispatchSlot): string => `${formatTime(slot.start)} - ${formatTime(slot.end)}`;
 
+const formatCondensedDate = (value: Date): string =>
+  new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+  }).format(value);
+
 const formatDuration = (startDate: Date, endDate: Date): string => {
   const minutes = Math.max(0, Math.round((endDate.getTime() - startDate.getTime()) / 60000));
   if (minutes < 60) {
@@ -223,6 +236,7 @@ export class IntelligentOctopusSlotsCard extends LitElement {
       title: "Intelligent Octopus Slots",
       show_title: true,
       icon: DEFAULT_ICON,
+      condensed_view: false,
       dispatching_entity: detectDispatchingEntity(hass),
     };
   }
@@ -254,6 +268,7 @@ export class IntelligentOctopusSlotsCard extends LitElement {
     const summaryDate = slotGroups.length === 1 && slotCount ? formatSummaryDate(slots[0].startDate) : undefined;
     const title = this._config.title || "Intelligent Octopus Slots";
     const icon = this._config.icon || DEFAULT_ICON;
+    const showCondensedDate = slotGroups.length > 1;
 
     return html`
       <ha-card>
@@ -286,25 +301,44 @@ export class IntelligentOctopusSlotsCard extends LitElement {
           ${slots.length
             ? html`
                 <div class="section">
-                  <div class="slot-groups">
-                    ${slotGroups.map(
-                      (group) => html`
-                        <section class="slot-group" aria-label=${group.label}>
-                          ${slotGroups.length > 1 ? html`<div class="group-label">${group.label}</div>` : nothing}
-                          <div class="slot-list">
-                            ${group.slots.map(
-                              (slot) => html`
-                                <div class="slot-chip">
-                                  <div class="slot-times">${formatTimeRange(slot)}</div>
-                                  <div class="slot-meta">${formatDuration(slot.startDate, slot.endDate)}</div>
+                  ${this._config.condensed_view
+                    ? html`
+                        <div class="slot-list slot-list-condensed" role="list">
+                          ${slots.map(
+                            (slot) => html`
+                              <div class="slot-chip slot-chip-condensed" role="listitem">
+                                <div class="slot-times">
+                                  ${showCondensedDate
+                                    ? html`<span class="slot-date">${formatCondensedDate(slot.startDate)}</span>`
+                                    : nothing}
+                                  <span>${formatTimeRange(slot)}</span>
                                 </div>
-                              `,
-                            )}
-                          </div>
-                        </section>
-                      `,
-                    )}
-                  </div>
+                              </div>
+                            `,
+                          )}
+                        </div>
+                      `
+                    : html`
+                        <div class="slot-groups">
+                          ${slotGroups.map(
+                            (group) => html`
+                              <section class="slot-group" aria-label=${group.label}>
+                                ${slotGroups.length > 1 ? html`<div class="group-label">${group.label}</div>` : nothing}
+                                <div class="slot-list">
+                                  ${group.slots.map(
+                                    (slot) => html`
+                                      <div class="slot-chip">
+                                        <div class="slot-times">${formatTimeRange(slot)}</div>
+                                        <div class="slot-meta">${formatDuration(slot.startDate, slot.endDate)}</div>
+                                      </div>
+                                    `,
+                                  )}
+                                </div>
+                              </section>
+                            `,
+                          )}
+                        </div>
+                      `}
                 </div>
               `
             : nothing}
@@ -419,6 +453,11 @@ export class IntelligentOctopusSlotsCard extends LitElement {
       gap: 6px;
     }
 
+    .slot-list-condensed {
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
     .slot-groups {
       display: grid;
       gap: 8px;
@@ -456,6 +495,12 @@ export class IntelligentOctopusSlotsCard extends LitElement {
       font-weight: 600;
     }
 
+    .slot-date {
+      color: var(--secondary-text-color);
+      font-weight: 500;
+      margin-right: 4px;
+    }
+
     .slot-meta {
       font-size: 0.7rem;
       color: var(--secondary-text-color);
@@ -479,6 +524,19 @@ export class IntelligentOctopusSlotsCard extends LitElement {
 
       .slot-chip {
         width: 100%;
+      }
+
+      .slot-list-condensed {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding-bottom: 2px;
+        scrollbar-width: thin;
+      }
+
+      .slot-chip-condensed {
+        width: auto;
+        min-width: max-content;
       }
     }
   `;
