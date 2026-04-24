@@ -408,17 +408,17 @@ export class IntelligentOctopusSlotsCard extends LitElement {
                     ? html`
                         <span>${slotCount} slot${slotCount === 1 ? "" : "s"}</span>
                         <span class="summary-dot"></span>
-                        <span class="duration-pill ${hasLongDay ? "alert" : ""}">
-                          ${hasLongDay ? html`<ha-icon icon="mdi:alert-outline"></ha-icon>` : nothing}
-                          <span>${formatSummaryDuration(durationSummary)}</span>
-                        </span>
+                        <span class="duration-total">${formatSummaryDuration(durationSummary)}</span>
                         ${summaryDate
                           ? html`<span class="summary-dot"></span>${summaryDate}`
                           : html`<span class="summary-dot"></span>${slotGroups.length} scheduled day${slotGroups.length === 1 ? "" : "s"}`}
                         ${hasLongDay
                           ? html`
                               <span class="summary-dot"></span>
-                              <span class="duration-alert">Long day ${formatMinutes(durationSummary.longestDayMinutes)}</span>
+                              <span class="duration-alert">
+                                <ha-icon icon="mdi:alert-outline"></ha-icon>
+                                <span>${formatMinutes(durationSummary.longestDayMinutes)} today</span>
+                              </span>
                             `
                           : nothing}
                       `
@@ -568,29 +568,28 @@ export class IntelligentOctopusSlotsCard extends LitElement {
       opacity: 0.5;
     }
 
-    .duration-pill,
+    .duration-total,
     .duration-alert {
       display: inline-flex;
       align-items: center;
       gap: 4px;
-      padding: 2px 7px;
-      border-radius: 999px;
-      background: var(--secondary-background-color, rgba(127, 127, 127, 0.12));
       color: var(--secondary-text-color);
       line-height: 1.1;
       white-space: nowrap;
     }
 
-    .duration-pill.alert,
     .duration-alert {
+      padding: 2px 7px;
+      border-radius: 999px;
       background: color-mix(in srgb, var(--warning-color, #f59e0b) 16%, var(--secondary-background-color, transparent));
       color: var(--warning-color, #f59e0b);
     }
 
-    .duration-pill ha-icon {
-      width: 13px;
-      height: 13px;
+    .duration-alert ha-icon {
+      width: 12px;
+      height: 12px;
       display: block;
+      flex: 0 0 auto;
     }
 
     .status-pill {
