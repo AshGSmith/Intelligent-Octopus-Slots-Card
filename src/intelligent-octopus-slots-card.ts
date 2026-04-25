@@ -39,6 +39,19 @@ const primaryEditorSchema: CardHelpersFormSchema[] = [
       icon: {},
     },
   },
+  {
+    name: "time_format",
+    label: "Time Format",
+    selector: {
+      select: {
+        options: [
+          { value: "12h", label: "12-hour" },
+          { value: "24h", label: "24-hour" },
+        ],
+        mode: "dropdown",
+      },
+    },
+  },
 ];
 
 const condensedEditorSchema: CardHelpersFormSchema[] = [
@@ -147,17 +160,20 @@ const parsePlannedDispatches = (value: unknown, options?: { includePast?: boolea
     .sort((left, right) => left.startDate.getTime() - right.startDate.getTime());
 };
 
-const formatTime = (value: string): string => {
+const formatTime = (value: string, timeFormat: "12h" | "24h" = "24h"): string => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
     return value;
   }
 
   return new Intl.DateTimeFormat("en-GB", {
-    hour: "2-digit",
+    hour: "numeric",
     minute: "2-digit",
-    hour12: true,
-  }).format(date);
+    hour12: timeFormat === "12h",
+  })
+    .format(date)
+    .replace("am", "AM")
+    .replace("pm", "PM");
 };
 
 const formatSummaryDate = (value: Date): string =>
@@ -198,7 +214,8 @@ const groupSlotsByDate = (slots: PlannedDispatchSlot[]): PlannedDispatchGroup[] 
   return Array.from(groups.values());
 };
 
-const formatTimeRange = (slot: PlannedDispatchSlot): string => `${formatTime(slot.start)} - ${formatTime(slot.end)}`;
+const formatTimeRange = (slot: PlannedDispatchSlot, timeFormat: "12h" | "24h"): string =>
+  `${formatTime(slot.start, timeFormat)} - ${formatTime(slot.end, timeFormat)}`;
 
 const formatCondensedDate = (value: Date): string =>
   new Intl.DateTimeFormat("en-GB", {
@@ -339,6 +356,7 @@ export class IntelligentOctopusSlotsCard extends LitElement {
       title: "Intelligent Octopus Slots",
       show_title: true,
       icon: DEFAULT_ICON,
+      time_format: "24h",
       condensed_view: false,
       show_completed_slots: true,
       test_data: false,
@@ -353,6 +371,7 @@ export class IntelligentOctopusSlotsCard extends LitElement {
 
     this._config = {
       show_title: true,
+      time_format: "24h",
       show_completed_slots: true,
       ...config,
     };
@@ -385,6 +404,7 @@ export class IntelligentOctopusSlotsCard extends LitElement {
     const slotGroups = groupSlotsByDate(slots);
     const title = this._config.title || "Intelligent Octopus Slots";
     const icon = this._config.icon || DEFAULT_ICON;
+    const timeFormat = this._config.time_format ?? "24h";
     const showCondensedDate = slotGroups.length > 1;
     const isActiveSampleSlot = this._config.test_data
       ? allSlots.some((slot) => {
@@ -448,7 +468,7 @@ export class IntelligentOctopusSlotsCard extends LitElement {
                                   ${showCondensedDate
                                     ? html`<span class="slot-date">${formatCondensedDate(slot.startDate)}</span>`
                                     : nothing}
-                                  <span>${formatTimeRange(slot)}</span>
+                                  <span>${formatTimeRange(slot, timeFormat)}</span>
                                 </div>
                               </div>
                             `,
@@ -468,7 +488,7 @@ export class IntelligentOctopusSlotsCard extends LitElement {
 
                                       return html`
                                       <div class="slot-chip ${isPast ? "past" : ""}">
-                                        <div class="slot-times">${formatTimeRange(slot)}</div>
+                                        <div class="slot-times">${formatTimeRange(slot, timeFormat)}</div>
                                         <div class="slot-meta-wrap">
                                           ${isPast ? html`<span class="past-badge">Complete</span>` : nothing}
                                           <div class="slot-meta">${formatDuration(slot.startDate, slot.endDate)}</div>
@@ -756,6 +776,7 @@ export class IntelligentOctopusSlotsCardEditor extends LitElement implements Lov
   public setConfig(config: IntelligentOctopusSlotsCardConfig): void {
     this._config = {
       show_title: true,
+      time_format: "24h",
       show_completed_slots: true,
       ...config,
       type: CARD_TYPE,

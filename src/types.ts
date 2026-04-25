@@ -27,6 +27,7 @@ export interface IntelligentOctopusSlotsCardConfig {
   title?: string;
   show_title?: boolean;
   icon?: string;
+  time_format?: "12h" | "24h";
   condensed_view?: boolean;
   show_completed_slots?: boolean;
   test_data?: boolean;
