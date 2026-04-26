@@ -9,6 +9,7 @@ import type {
 
 const CARD_TYPE = "custom:intelligent-octopus-slots-card";
 const DEFAULT_ICON = "mdi:ev-station";
+const USED_MINUTES_ENTITY_ID = "input_number.intelligent_octopus_used_minutes_today";
 
 const AUTO_DETECT_PATTERNS = [
   "intelligent_dispatch",
@@ -445,6 +446,9 @@ export class IntelligentOctopusSlotsCard extends LitElement {
     const slots = includeCompletedSlots ? allSlots : allSlots.filter((slot) => slot.endDate.getTime() > now);
     const summarySlotGroups = groupSlotsByDate(allSlots, now);
     const durationSummary = getDurationSummary(summarySlotGroups);
+    const usedMinutesState = this.hass?.states[USED_MINUTES_ENTITY_ID]?.state;
+    const usedMinutesValue = usedMinutesState !== undefined ? Number(usedMinutesState) : Number.NaN;
+    const hasUsedMinutesValue = Number.isFinite(usedMinutesValue);
     const slotCount = originalSlots.length;
     const summaryDate =
       summarySlotGroups.length === 1 && slotCount ? formatSummaryDate(summarySlotGroups[0].slots[0].startDate) : undefined;
@@ -485,6 +489,12 @@ export class IntelligentOctopusSlotsCard extends LitElement {
                         ${summaryDate
                           ? html`<span class="summary-dot"></span>${summaryDate}`
                           : html`<span class="summary-dot"></span>${summarySlotGroups.length} scheduled day${summarySlotGroups.length === 1 ? "" : "s"}`}
+                        ${hasUsedMinutesValue
+                          ? html`
+                              <span class="summary-dot"></span>
+                              <span>Used: ${formatMinutes(usedMinutesValue)}</span>
+                            `
+                          : nothing}
                         ${hasLongDay
                           ? longDayGroups.map(
                               (group) => html`
