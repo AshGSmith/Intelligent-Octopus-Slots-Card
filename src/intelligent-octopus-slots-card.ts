@@ -630,6 +630,11 @@ export class IntelligentOctopusSlotsCard extends LitElement {
     const hasLongDay = durationSummary.longestDayMinutes > 360;
     const longDayGroups = summarySlotGroups.filter((group) => group.totalMinutes > 360);
     const shouldShowInlineDate = slots.length === 1;
+    const debugUsedEntityId = this._config.used_slot_time_today_entity;
+    const debugUsedState = debugUsedEntityId ? this.hass?.states[debugUsedEntityId]?.state : undefined;
+    const debugUsedUnit = debugUsedEntityId
+      ? this.hass?.states[debugUsedEntityId]?.attributes?.unit_of_measurement
+      : undefined;
 
     return html`
       <ha-card>
@@ -673,6 +678,19 @@ export class IntelligentOctopusSlotsCard extends LitElement {
                       `
                     : nothing}
                 </div>
+                ${debugUsedEntityId
+                  ? html`
+                      <div class="debug-line">
+                        Used Entity: ${debugUsedEntityId}
+                      </div>
+                      <div class="debug-line">
+                        Used State: ${debugUsedState ?? ""}
+                      </div>
+                      <div class="debug-line">
+                        Used Unit: ${debugUsedUnit ?? ""}
+                      </div>
+                    `
+                  : nothing}
               </div>
             </div>
 
@@ -812,6 +830,14 @@ export class IntelligentOctopusSlotsCard extends LitElement {
       flex-wrap: wrap;
       font-size: 0.8rem;
       color: var(--secondary-text-color);
+    }
+
+    .debug-line {
+      margin-top: 2px;
+      font-size: 0.74rem;
+      line-height: 1.2;
+      color: var(--secondary-text-color);
+      word-break: break-word;
     }
 
     .summary-dot {
