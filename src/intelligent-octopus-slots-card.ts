@@ -126,6 +126,17 @@ interface DurationSummary {
   dayCount: number;
 }
 
+interface CachedSlotRecord {
+  start: string;
+  end: string;
+  dayKey: string;
+  seenAt: string;
+  lastUsedMinutes: number;
+}
+
+const SLOT_HISTORY_STORAGE_PREFIX = "intelligent_octopus_slots_card";
+const SLOT_HISTORY_RETENTION_DAYS = 7;
+
 const parsePlannedDispatches = (value: unknown, options?: { includePast?: boolean }): PlannedDispatchSlot[] => {
   if (!Array.isArray(value)) {
     return [];
@@ -203,6 +214,101 @@ const getSlotDateKey = (value: Date): string => {
 const getNextMidnight = (value: Date): Date =>
   new Date(value.getFullYear(), value.getMonth(), value.getDate() + 1, 0, 0, 0, 0);
 
+const getSlotCacheKey = (entityId: string, dayKey: string): string =>
+  `${SLOT_HISTORY_STORAGE_PREFIX}:${entityId}:${dayKey}`;
+
+const getSlotCacheId = (slot: Pick<PlannedDispatchSlot, "start" | "end">): string => `${slot.start}|${slot.end}`;
+
+const getStorage = (): Storage | undefined => {
+  if (typeof window === "undefined") {
+    return undefined;
+  }
+
+  try {
+    return window.localStorage;
+  } catch (_error) {
+    return undefined;
+  }
+};
+
+const readCachedDayRecords = (entityId: string, dayKey: string): CachedSlotRecord[] => {
+  const storage = getStorage();
+  if (!storage) {
+    return [];
+  }
+
+  try {
+    const raw = storage.getItem(getSlotCacheKey(entityId, dayKey));
+    if (!raw) {
+      return [];
+    }
+
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed.filter((record): record is CachedSlotRecord => {
+      return (
+        !!record &&
+        typeof record === "object" &&
+        typeof (record as CachedSlotRecord).start === "string" &&
+        typeof (record as CachedSlotRecord).end === "string" &&
+        typeof (record as CachedSlotRecord).dayKey === "string" &&
+        typeof (record as CachedSlotRecord).seenAt === "string" &&
+        typeof (record as CachedSlotRecord).lastUsedMinutes === "number"
+      );
+    });
+  } catch (_error) {
+    return [];
+  }
+};
+
+const writeCachedDayRecords = (entityId: string, dayKey: string, records: CachedSlotRecord[]): void => {
+  const storage = getStorage();
+  if (!storage) {
+    return;
+  }
+
+  try {
+    storage.setItem(getSlotCacheKey(entityId, dayKey), JSON.stringify(records));
+  } catch (_error) {
+    // Ignore localStorage write failures so the card still renders normally.
+  }
+};
+
+const cleanupSlotHistoryCache = (): void => {
+  const storage = getStorage();
+  if (!storage) {
+    return;
+  }
+
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - SLOT_HISTORY_RETENTION_DAYS);
+  const cutoffKey = getSlotDateKey(cutoff);
+  const keysToRemove: string[] = [];
+
+  for (let index = 0; index < storage.length; index += 1) {
+    const key = storage.key(index);
+    if (!key || !key.startsWith(`${SLOT_HISTORY_STORAGE_PREFIX}:`)) {
+      continue;
+    }
+
+    const dayKey = key.split(":").pop();
+    if (dayKey && dayKey < cutoffKey) {
+      keysToRemove.push(key);
+    }
+  }
+
+  for (const key of keysToRemove) {
+    try {
+      storage.removeItem(key);
+    } catch (_error) {
+      // Ignore cleanup failures so the card still renders normally.
+    }
+  }
+};
+
 const splitSlotsByDay = (slots: PlannedDispatchSlot[]): PlannedDispatchSlot[] => {
   const splitSlots: PlannedDispatchSlot[] = [];
 
@@ -229,13 +335,16 @@ const splitSlotsByDay = (slots: PlannedDispatchSlot[]): PlannedDispatchSlot[] =>
   return splitSlots;
 };
 
+const getSlotDurationMinutes = (slot: Pick<PlannedDispatchSlot, "startDate" | "endDate">): number =>
+  Math.max(0, Math.round((slot.endDate.getTime() - slot.startDate.getTime()) / 60000));
+
 const getUsedMinutes = (slot: PlannedDispatchSlot, now: number): number => {
   if (now <= slot.startDate.getTime()) {
     return 0;
   }
 
   if (now >= slot.endDate.getTime()) {
-    return Math.max(0, Math.round((slot.endDate.getTime() - slot.startDate.getTime()) / 60000));
+    return getSlotDurationMinutes(slot);
   }
 
   return Math.max(0, Math.round((now - slot.startDate.getTime()) / 60000));
@@ -249,19 +358,108 @@ const formatGroupShortDate = (value: Date, now: Date): string => {
   return formatCondensedDate(value);
 };
 
-const groupSlotsByDate = (slots: PlannedDispatchSlot[], now: number): PlannedDispatchGroup[] => {
+// Local slot history exists because the Octopus integration regenerates
+// planned_dispatches and drops completed slot history from the entity attributes.
+// We cache split day-normalized slots locally so used time can survive refreshes.
+const buildUsedMinutesByDayFromCache = (
+  entityId: string | undefined,
+  slots: PlannedDispatchSlot[],
+  now: number,
+): Map<string, number> => {
+  const usedMinutesByDay = new Map<string, number>();
+  cleanupSlotHistoryCache();
+
+  if (!entityId) {
+    return usedMinutesByDay;
+  }
+
+  const slotsByDay = new Map<string, PlannedDispatchSlot[]>();
+  for (const slot of slots) {
+    const dayKey = getSlotDateKey(slot.startDate);
+    const existing = slotsByDay.get(dayKey);
+    if (existing) {
+      existing.push(slot);
+    } else {
+      slotsByDay.set(dayKey, [slot]);
+    }
+  }
+
+  const nowIso = new Date(now).toISOString();
+
+  for (const [dayKey, daySlots] of slotsByDay) {
+    const cachedRecords = readCachedDayRecords(entityId, dayKey);
+    const cacheById = new Map(cachedRecords.map((record) => [getSlotCacheId(record), record]));
+    const currentIds = new Set<string>();
+
+    for (const slot of daySlots) {
+      const cacheId = getSlotCacheId(slot);
+      currentIds.add(cacheId);
+      const currentUsedMinutes = getUsedMinutes(slot, now);
+      const existing = cacheById.get(cacheId);
+
+      if (existing) {
+        existing.lastUsedMinutes = Math.max(existing.lastUsedMinutes, currentUsedMinutes);
+        existing.seenAt = nowIso;
+        continue;
+      }
+
+      cacheById.set(cacheId, {
+        start: slot.start,
+        end: slot.end,
+        dayKey,
+        seenAt: nowIso,
+        lastUsedMinutes: currentUsedMinutes,
+      });
+    }
+
+    const mergedRecords = Array.from(cacheById.values()).sort((left, right) => left.start.localeCompare(right.start));
+    writeCachedDayRecords(entityId, dayKey, mergedRecords);
+
+    let usedMinutes = 0;
+
+    for (const record of mergedRecords) {
+      const startDate = new Date(record.start);
+      const endDate = new Date(record.end);
+      if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+        continue;
+      }
+
+      const durationMinutes = getSlotDurationMinutes({ startDate, endDate });
+      const isCurrentSlot = currentIds.has(getSlotCacheId(record));
+      let liveUsedMinutes = 0;
+
+      if (isCurrentSlot) {
+        if (now >= endDate.getTime()) {
+          liveUsedMinutes = durationMinutes;
+        } else if (now > startDate.getTime()) {
+          liveUsedMinutes = Math.max(0, Math.round((now - startDate.getTime()) / 60000));
+        }
+      }
+
+      usedMinutes += Math.min(durationMinutes, Math.max(record.lastUsedMinutes, liveUsedMinutes));
+    }
+
+    usedMinutesByDay.set(dayKey, usedMinutes);
+  }
+
+  return usedMinutesByDay;
+};
+
+const groupSlotsByDate = (
+  slots: PlannedDispatchSlot[],
+  now: number,
+  usedMinutesByDay?: Map<string, number>,
+): PlannedDispatchGroup[] => {
   const groups = new Map<string, PlannedDispatchGroup>();
 
   for (const slot of slots) {
     const key = getSlotDateKey(slot.startDate);
     const existing = groups.get(key);
-    const slotMinutes = Math.max(0, Math.round((slot.endDate.getTime() - slot.startDate.getTime()) / 60000));
-    const usedMinutes = getUsedMinutes(slot, now);
+    const slotMinutes = getSlotDurationMinutes(slot);
 
     if (existing) {
       existing.slots.push(slot);
       existing.totalMinutes += slotMinutes;
-      existing.usedMinutes += usedMinutes;
       continue;
     }
 
@@ -271,11 +469,14 @@ const groupSlotsByDate = (slots: PlannedDispatchSlot[], now: number): PlannedDis
       shortLabel: formatGroupShortDate(slot.startDate, new Date(now)),
       slots: [slot],
       totalMinutes: slotMinutes,
-      usedMinutes,
+      usedMinutes: 0,
     });
   }
 
-  return Array.from(groups.values());
+  return Array.from(groups.values()).map((group) => ({
+    ...group,
+    usedMinutes: usedMinutesByDay?.get(group.key) ?? group.slots.reduce((total, slot) => total + getUsedMinutes(slot, now), 0),
+  }));
 };
 
 const formatTimeRange = (slot: PlannedDispatchSlot, timeFormat: "12h" | "24h"): string =>
@@ -454,14 +655,19 @@ export class IntelligentOctopusSlotsCard extends LitElement {
     });
     const allSlots = splitSlotsByDay(originalSlots);
     const now = Date.now();
+    const usedMinutesByDay = buildUsedMinutesByDayFromCache(
+      this._config.test_data ? undefined : this._config.dispatching_entity,
+      allSlots,
+      now,
+    );
     const includeCompletedSlots = this._config.condensed_view ? false : this._config.show_completed_slots !== false;
     const slots = includeCompletedSlots ? allSlots : allSlots.filter((slot) => slot.endDate.getTime() > now);
-    const summarySlotGroups = groupSlotsByDate(allSlots, now);
+    const summarySlotGroups = groupSlotsByDate(allSlots, now, usedMinutesByDay);
     const durationSummary = getDurationSummary(summarySlotGroups);
     const slotCount = originalSlots.length;
     const summaryDate =
       summarySlotGroups.length === 1 && slotCount ? formatSummaryDate(summarySlotGroups[0].slots[0].startDate) : undefined;
-    const slotGroups = groupSlotsByDate(slots, now);
+    const slotGroups = groupSlotsByDate(slots, now, usedMinutesByDay);
     const title = this._config.title || "Intelligent Octopus Slots";
     const icon = this._config.icon || DEFAULT_ICON;
     const timeFormat = this._config.time_format ?? "24h";
