@@ -17,6 +17,25 @@ const AUTO_DETECT_PATTERNS = [
   "octopus_intelligent_dispatch",
 ];
 
+const USED_TIME_DETECT_PATTERNS = {
+  today: [
+    "intelligent octopus used minutes today",
+    "intelligent octopus used time today",
+    "intelligent octopus slot usage today",
+    "intelligent octopus slots used today",
+    "used slot time today",
+    "used minutes today",
+  ],
+  tomorrow: [
+    "intelligent octopus used minutes tomorrow",
+    "intelligent octopus used time tomorrow",
+    "intelligent octopus slot usage tomorrow",
+    "intelligent octopus slots used tomorrow",
+    "used slot time tomorrow",
+    "used minutes tomorrow",
+  ],
+} as const;
+
 const primaryEditorSchema: CardHelpersFormSchema[] = [
   {
     name: "title",
@@ -492,6 +511,39 @@ const detectDispatchingEntity = (hass?: HomeAssistant): string | undefined => {
   })?.entity_id;
 };
 
+const detectUsedSlotTimeEntity = (hass: HomeAssistant | undefined, day: "today" | "tomorrow"): string | undefined => {
+  if (!hass) {
+    return undefined;
+  }
+
+  const patterns = USED_TIME_DETECT_PATTERNS[day];
+  const entities = Object.values(hass.states);
+  const numericEntities = entities.filter((entity) => parseUsedMinutesEntity(entity) !== undefined);
+
+  const exactMatch = numericEntities.find((entity) => {
+    const friendlyName = entity.attributes.friendly_name;
+    const uniqueId = entity.attributes.unique_id;
+    const text = [
+      entity.entity_id,
+      typeof friendlyName === "string" ? friendlyName : "",
+      typeof uniqueId === "string" ? uniqueId : "",
+    ]
+      .join(" ")
+      .toLowerCase();
+
+    return patterns.some((pattern) => text.includes(pattern));
+  });
+
+  if (exactMatch) {
+    return exactMatch.entity_id;
+  }
+
+  return numericEntities.find((entity) => {
+    const id = entity.entity_id.toLowerCase();
+    return id.includes("octopus") && id.includes("used") && id.includes(day);
+  })?.entity_id;
+};
+
 @customElement("intelligent-octopus-slots-card")
 export class IntelligentOctopusSlotsCard extends LitElement {
   @property({ attribute: false }) public hass?: HomeAssistant;
@@ -513,6 +565,8 @@ export class IntelligentOctopusSlotsCard extends LitElement {
       show_completed_slots: true,
       test_data: false,
       dispatching_entity: detectDispatchingEntity(hass),
+      used_slot_time_today_entity: detectUsedSlotTimeEntity(hass, "today"),
+      used_slot_time_tomorrow_entity: detectUsedSlotTimeEntity(hass, "tomorrow"),
     };
   }
 
@@ -940,7 +994,10 @@ export class IntelligentOctopusSlotsCardEditor extends LitElement implements Lov
 
   @state() private _config?: IntelligentOctopusSlotsCardConfig;
 
+  private _didAutofillDetectedHelpers = false;
+
   public setConfig(config: IntelligentOctopusSlotsCardConfig): void {
+    this._didAutofillDetectedHelpers = false;
     this._config = {
       show_title: true,
       time_format: "24h",
@@ -967,9 +1024,12 @@ export class IntelligentOctopusSlotsCardEditor extends LitElement implements Lov
 
   private _autoDetect(): void {
     const detected = detectDispatchingEntity(this.hass);
-    if (!detected) {
+    const detectedTodayEntity = detectUsedSlotTimeEntity(this.hass, "today");
+    const detectedTomorrowEntity = detectUsedSlotTimeEntity(this.hass, "tomorrow");
+
+    if (!detected && !detectedTodayEntity && !detectedTomorrowEntity) {
       fireEvent(this, "hass-notification", {
-        message: "No Octopus intelligent dispatching entity found.",
+        message: "No matching Octopus entities or used-time helpers found.",
       });
       return;
     }
@@ -977,9 +1037,40 @@ export class IntelligentOctopusSlotsCardEditor extends LitElement implements Lov
     this._config = {
       ...this._config,
       type: CARD_TYPE,
-      dispatching_entity: detected,
+      dispatching_entity: detected ?? this._config?.dispatching_entity,
+      used_slot_time_today_entity: this._config?.used_slot_time_today_entity ?? detectedTodayEntity,
+      used_slot_time_tomorrow_entity: this._config?.used_slot_time_tomorrow_entity ?? detectedTomorrowEntity,
     };
 
+    fireEvent(this, "config-changed", {
+      config: this._config,
+    });
+  }
+
+  protected updated(): void {
+    if (!this.hass || !this._config || this._didAutofillDetectedHelpers) {
+      return;
+    }
+
+    const nextConfig: IntelligentOctopusSlotsCardConfig = {
+      ...this._config,
+      used_slot_time_today_entity:
+        this._config.used_slot_time_today_entity ?? detectUsedSlotTimeEntity(this.hass, "today"),
+      used_slot_time_tomorrow_entity:
+        this._config.used_slot_time_tomorrow_entity ?? detectUsedSlotTimeEntity(this.hass, "tomorrow"),
+    };
+
+    const changed =
+      nextConfig.used_slot_time_today_entity !== this._config.used_slot_time_today_entity ||
+      nextConfig.used_slot_time_tomorrow_entity !== this._config.used_slot_time_tomorrow_entity;
+
+    this._didAutofillDetectedHelpers = true;
+
+    if (!changed) {
+      return;
+    }
+
+    this._config = nextConfig;
     fireEvent(this, "config-changed", {
       config: this._config,
     });
