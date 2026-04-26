@@ -17,25 +17,6 @@ const AUTO_DETECT_PATTERNS = [
   "octopus_intelligent_dispatch",
 ];
 
-const USED_TIME_DETECT_PATTERNS = {
-  today: [
-    "intelligent octopus used minutes today",
-    "intelligent octopus used time today",
-    "intelligent octopus slot usage today",
-    "intelligent octopus slots used today",
-    "used slot time today",
-    "used minutes today",
-  ],
-  tomorrow: [
-    "intelligent octopus used minutes tomorrow",
-    "intelligent octopus used time tomorrow",
-    "intelligent octopus slot usage tomorrow",
-    "intelligent octopus slots used tomorrow",
-    "used slot time tomorrow",
-    "used minutes tomorrow",
-  ],
-} as const;
-
 const primaryEditorSchema: CardHelpersFormSchema[] = [
   {
     name: "title",
@@ -113,26 +94,6 @@ const entityEditorSchema: CardHelpersFormSchema[] = [
   },
 ];
 
-const usedTimeTodayEditorSchema: CardHelpersFormSchema[] = [
-  {
-    name: "used_slot_time_today_entity",
-    label: "Used Slot Time Today Entity",
-    selector: {
-      entity: {},
-    },
-  },
-];
-
-const usedTimeTomorrowEditorSchema: CardHelpersFormSchema[] = [
-  {
-    name: "used_slot_time_tomorrow_entity",
-    label: "Used Slot Time Tomorrow Entity",
-    selector: {
-      entity: {},
-    },
-  },
-];
-
 const fireEvent = (node: HTMLElement, type: string, detail?: Record<string, unknown>) => {
   node.dispatchEvent(
     new CustomEvent(type, {
@@ -156,8 +117,6 @@ interface PlannedDispatchGroup {
   shortLabel: string;
   slots: PlannedDispatchSlot[];
   totalMinutes: number;
-  usedMinutes: number;
-  hasUsedMinutes: boolean;
 }
 
 interface DurationSummary {
@@ -272,80 +231,6 @@ const splitSlotsByDay = (slots: PlannedDispatchSlot[]): PlannedDispatchSlot[] =>
 const getSlotDurationMinutes = (slot: Pick<PlannedDispatchSlot, "startDate" | "endDate">): number =>
   Math.max(0, Math.round((slot.endDate.getTime() - slot.startDate.getTime()) / 60000));
 
-const getUsedMinutes = (slot: PlannedDispatchSlot, now: number): number => {
-  if (now <= slot.startDate.getTime()) {
-    return 0;
-  }
-
-  if (now >= slot.endDate.getTime()) {
-    return getSlotDurationMinutes(slot);
-  }
-
-  return Math.max(0, Math.round((now - slot.startDate.getTime()) / 60000));
-};
-
-const parseUsedMinutesEntity = (entity?: HomeAssistant["states"][string]): number | undefined => {
-  if (!entity) {
-    return undefined;
-  }
-
-  const rawValue = Number(entity.state);
-  if (!Number.isFinite(rawValue)) {
-    return undefined;
-  }
-
-  const rawUnit = entity.attributes.unit_of_measurement;
-  const unit = typeof rawUnit === "string" ? rawUnit.trim().toLowerCase() : "";
-
-  if (!unit || ["m", "min", "mins", "minute", "minutes"].includes(unit)) {
-    return Math.max(0, rawValue);
-  }
-
-  if (["h", "hr", "hrs", "hour", "hours"].includes(unit)) {
-    return Math.max(0, rawValue * 60);
-  }
-
-  if (["s", "sec", "secs", "second", "seconds"].includes(unit)) {
-    return Math.max(0, rawValue / 60);
-  }
-
-  return undefined;
-};
-
-const buildConfiguredUsedMinutesByDay = (
-  hass: HomeAssistant | undefined,
-  config: IntelligentOctopusSlotsCardConfig,
-  now: number,
-): Map<string, number> => {
-  const usedMinutesByDay = new Map<string, number>();
-
-  if (!hass) {
-    return usedMinutesByDay;
-  }
-
-  const todayKey = getSlotDateKey(new Date(now));
-  const tomorrow = new Date(now);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const tomorrowKey = getSlotDateKey(tomorrow);
-
-  const todayMinutes = parseUsedMinutesEntity(
-    config.used_slot_time_today_entity ? hass.states[config.used_slot_time_today_entity] : undefined,
-  );
-  const tomorrowMinutes = parseUsedMinutesEntity(
-    config.used_slot_time_tomorrow_entity ? hass.states[config.used_slot_time_tomorrow_entity] : undefined,
-  );
-
-  if (todayMinutes !== undefined) {
-    usedMinutesByDay.set(todayKey, todayMinutes);
-  }
-
-  if (tomorrowMinutes !== undefined) {
-    usedMinutesByDay.set(tomorrowKey, tomorrowMinutes);
-  }
-
-  return usedMinutesByDay;
-};
-
 const formatGroupShortDate = (value: Date, now: Date): string => {
   if (getSlotDateKey(value) === getSlotDateKey(now)) {
     return "today";
@@ -354,11 +239,7 @@ const formatGroupShortDate = (value: Date, now: Date): string => {
   return formatCondensedDate(value);
 };
 
-const groupSlotsByDate = (
-  slots: PlannedDispatchSlot[],
-  now: number,
-  usedMinutesByDay?: Map<string, number>,
-): PlannedDispatchGroup[] => {
+const groupSlotsByDate = (slots: PlannedDispatchSlot[], now: number): PlannedDispatchGroup[] => {
   const groups = new Map<string, PlannedDispatchGroup>();
 
   for (const slot of slots) {
@@ -378,16 +259,10 @@ const groupSlotsByDate = (
       shortLabel: formatGroupShortDate(slot.startDate, new Date(now)),
       slots: [slot],
       totalMinutes: slotMinutes,
-      usedMinutes: 0,
-      hasUsedMinutes: false,
     });
   }
 
-  return Array.from(groups.values()).map((group) => ({
-    ...group,
-    usedMinutes: usedMinutesByDay?.get(group.key) ?? group.slots.reduce((total, slot) => total + getUsedMinutes(slot, now), 0),
-    hasUsedMinutes: usedMinutesByDay?.has(group.key) ?? false,
-  }));
+  return Array.from(groups.values());
 };
 
 const formatTimeRange = (slot: PlannedDispatchSlot, timeFormat: "12h" | "24h"): string =>
@@ -511,39 +386,6 @@ const detectDispatchingEntity = (hass?: HomeAssistant): string | undefined => {
   })?.entity_id;
 };
 
-const detectUsedSlotTimeEntity = (hass: HomeAssistant | undefined, day: "today" | "tomorrow"): string | undefined => {
-  if (!hass) {
-    return undefined;
-  }
-
-  const patterns = USED_TIME_DETECT_PATTERNS[day];
-  const entities = Object.values(hass.states);
-  const numericEntities = entities.filter((entity) => parseUsedMinutesEntity(entity) !== undefined);
-
-  const exactMatch = numericEntities.find((entity) => {
-    const friendlyName = entity.attributes.friendly_name;
-    const uniqueId = entity.attributes.unique_id;
-    const text = [
-      entity.entity_id,
-      typeof friendlyName === "string" ? friendlyName : "",
-      typeof uniqueId === "string" ? uniqueId : "",
-    ]
-      .join(" ")
-      .toLowerCase();
-
-    return patterns.some((pattern) => text.includes(pattern));
-  });
-
-  if (exactMatch) {
-    return exactMatch.entity_id;
-  }
-
-  return numericEntities.find((entity) => {
-    const id = entity.entity_id.toLowerCase();
-    return id.includes("octopus") && id.includes("used") && id.includes(day);
-  })?.entity_id;
-};
-
 @customElement("intelligent-octopus-slots-card")
 export class IntelligentOctopusSlotsCard extends LitElement {
   @property({ attribute: false }) public hass?: HomeAssistant;
@@ -565,8 +407,6 @@ export class IntelligentOctopusSlotsCard extends LitElement {
       show_completed_slots: true,
       test_data: false,
       dispatching_entity: detectDispatchingEntity(hass),
-      used_slot_time_today_entity: detectUsedSlotTimeEntity(hass, "today"),
-      used_slot_time_tomorrow_entity: detectUsedSlotTimeEntity(hass, "tomorrow"),
     };
   }
 
@@ -601,19 +441,14 @@ export class IntelligentOctopusSlotsCard extends LitElement {
     });
     const allSlots = splitSlotsByDay(originalSlots);
     const now = Date.now();
-    const usedMinutesByDay = this._config.test_data ? new Map<string, number>() : buildConfiguredUsedMinutesByDay(this.hass, this._config, now);
     const includeCompletedSlots = this._config.condensed_view ? false : this._config.show_completed_slots !== false;
     const slots = includeCompletedSlots ? allSlots : allSlots.filter((slot) => slot.endDate.getTime() > now);
-    const summarySlotGroups = groupSlotsByDate(allSlots, now, usedMinutesByDay);
+    const summarySlotGroups = groupSlotsByDate(allSlots, now);
     const durationSummary = getDurationSummary(summarySlotGroups);
-    const usedTodayEntityId = this._config.used_slot_time_today_entity;
-    const usedTodayStateObj = usedTodayEntityId ? this.hass?.states[usedTodayEntityId] : undefined;
-    const todayUsedMinutes = this._config.test_data ? undefined : parseUsedMinutesEntity(usedTodayStateObj);
-    const hasTodayUsedMinutes = todayUsedMinutes !== undefined;
     const slotCount = originalSlots.length;
     const summaryDate =
       summarySlotGroups.length === 1 && slotCount ? formatSummaryDate(summarySlotGroups[0].slots[0].startDate) : undefined;
-    const slotGroups = groupSlotsByDate(slots, now, usedMinutesByDay);
+    const slotGroups = groupSlotsByDate(slots, now);
     const title = this._config.title || "Intelligent Octopus Slots";
     const icon = this._config.icon || DEFAULT_ICON;
     const timeFormat = this._config.time_format ?? "24h";
@@ -630,11 +465,6 @@ export class IntelligentOctopusSlotsCard extends LitElement {
     const hasLongDay = durationSummary.longestDayMinutes > 360;
     const longDayGroups = summarySlotGroups.filter((group) => group.totalMinutes > 360);
     const shouldShowInlineDate = slots.length === 1;
-    const debugUsedEntityId = this._config.used_slot_time_today_entity;
-    const debugUsedState = debugUsedEntityId ? this.hass?.states[debugUsedEntityId]?.state : undefined;
-    const debugUsedUnit = debugUsedEntityId
-      ? this.hass?.states[debugUsedEntityId]?.attributes?.unit_of_measurement
-      : undefined;
 
     return html`
       <ha-card>
@@ -661,9 +491,7 @@ export class IntelligentOctopusSlotsCard extends LitElement {
                                 <span class="summary-dot"></span>
                                 <span class="duration-alert">
                                   <span>
-                                    ${formatMinutes(group.totalMinutes)} ${group.shortLabel}${group.hasUsedMinutes
-                                      ? html` · ${formatMinutes(group.usedMinutes)} used`
-                                      : nothing}
+                                    ${formatMinutes(group.totalMinutes)} ${group.shortLabel}
                                   </span>
                                 </span>
                               `,
@@ -671,26 +499,7 @@ export class IntelligentOctopusSlotsCard extends LitElement {
                           : nothing}
                       `
                     : html`No charging slots scheduled`}
-                  ${hasTodayUsedMinutes
-                    ? html`
-                        <span class="summary-dot"></span>
-                        <span>${formatMinutes(todayUsedMinutes)} used</span>
-                      `
-                    : nothing}
                 </div>
-                ${debugUsedEntityId
-                  ? html`
-                      <div class="debug-line">
-                        Used Entity: ${debugUsedEntityId}
-                      </div>
-                      <div class="debug-line">
-                        Used State: ${debugUsedState ?? ""}
-                      </div>
-                      <div class="debug-line">
-                        Used Unit: ${debugUsedUnit ?? ""}
-                      </div>
-                    `
-                  : nothing}
               </div>
             </div>
 
@@ -830,14 +639,6 @@ export class IntelligentOctopusSlotsCard extends LitElement {
       flex-wrap: wrap;
       font-size: 0.8rem;
       color: var(--secondary-text-color);
-    }
-
-    .debug-line {
-      margin-top: 2px;
-      font-size: 0.74rem;
-      line-height: 1.2;
-      color: var(--secondary-text-color);
-      word-break: break-word;
     }
 
     .summary-dot {
@@ -1030,10 +831,7 @@ export class IntelligentOctopusSlotsCardEditor extends LitElement implements Lov
 
   @state() private _config?: IntelligentOctopusSlotsCardConfig;
 
-  private _didAutofillDetectedHelpers = false;
-
   public setConfig(config: IntelligentOctopusSlotsCardConfig): void {
-    this._didAutofillDetectedHelpers = false;
     this._config = {
       show_title: true,
       time_format: "24h",
@@ -1060,12 +858,9 @@ export class IntelligentOctopusSlotsCardEditor extends LitElement implements Lov
 
   private _autoDetect(): void {
     const detected = detectDispatchingEntity(this.hass);
-    const detectedTodayEntity = detectUsedSlotTimeEntity(this.hass, "today");
-    const detectedTomorrowEntity = detectUsedSlotTimeEntity(this.hass, "tomorrow");
-
-    if (!detected && !detectedTodayEntity && !detectedTomorrowEntity) {
+    if (!detected) {
       fireEvent(this, "hass-notification", {
-        message: "No matching Octopus entities or used-time helpers found.",
+        message: "No Octopus intelligent dispatching entity found.",
       });
       return;
     }
@@ -1073,40 +868,9 @@ export class IntelligentOctopusSlotsCardEditor extends LitElement implements Lov
     this._config = {
       ...this._config,
       type: CARD_TYPE,
-      dispatching_entity: detected ?? this._config?.dispatching_entity,
-      used_slot_time_today_entity: this._config?.used_slot_time_today_entity ?? detectedTodayEntity,
-      used_slot_time_tomorrow_entity: this._config?.used_slot_time_tomorrow_entity ?? detectedTomorrowEntity,
+      dispatching_entity: detected,
     };
 
-    fireEvent(this, "config-changed", {
-      config: this._config,
-    });
-  }
-
-  protected updated(): void {
-    if (!this.hass || !this._config || this._didAutofillDetectedHelpers) {
-      return;
-    }
-
-    const nextConfig: IntelligentOctopusSlotsCardConfig = {
-      ...this._config,
-      used_slot_time_today_entity:
-        this._config.used_slot_time_today_entity ?? detectUsedSlotTimeEntity(this.hass, "today"),
-      used_slot_time_tomorrow_entity:
-        this._config.used_slot_time_tomorrow_entity ?? detectUsedSlotTimeEntity(this.hass, "tomorrow"),
-    };
-
-    const changed =
-      nextConfig.used_slot_time_today_entity !== this._config.used_slot_time_today_entity ||
-      nextConfig.used_slot_time_tomorrow_entity !== this._config.used_slot_time_tomorrow_entity;
-
-    this._didAutofillDetectedHelpers = true;
-
-    if (!changed) {
-      return;
-    }
-
-    this._config = nextConfig;
     fireEvent(this, "config-changed", {
       config: this._config,
     });
@@ -1164,26 +928,6 @@ export class IntelligentOctopusSlotsCardEditor extends LitElement implements Lov
           .computeLabel=${this._computeLabel}
           @value-changed=${this._valueChanged}
         ></ha-form>
-
-        <ha-form
-          .hass=${this.hass}
-          .data=${this._config}
-          .schema=${usedTimeTodayEditorSchema}
-          .computeLabel=${this._computeLabel}
-          @value-changed=${this._valueChanged}
-        ></ha-form>
-
-        <div class="helper-text">Optional Home Assistant sensor/helper that tracks used slot time for the day.</div>
-
-        <ha-form
-          .hass=${this.hass}
-          .data=${this._config}
-          .schema=${usedTimeTomorrowEditorSchema}
-          .computeLabel=${this._computeLabel}
-          @value-changed=${this._valueChanged}
-        ></ha-form>
-
-        <div class="helper-text">Optional Home Assistant sensor/helper that tracks used slot time for the day.</div>
 
         <button class="detect-button" type="button" @click=${this._autoDetect}>Auto-detect</button>
       </div>
