@@ -606,11 +606,6 @@ export class IntelligentOctopusSlotsCard extends LitElement {
     const slots = includeCompletedSlots ? allSlots : allSlots.filter((slot) => slot.endDate.getTime() > now);
     const summarySlotGroups = groupSlotsByDate(allSlots, now, usedMinutesByDay);
     const durationSummary = getDurationSummary(summarySlotGroups);
-    const debugUsedEntityId = this._config.used_slot_time_today_entity ?? "";
-    const debugUsedStateObj = debugUsedEntityId ? this.hass?.states[debugUsedEntityId] : undefined;
-    const debugUsedState = debugUsedStateObj?.state ?? "";
-    const debugUsedUnitRaw = debugUsedStateObj?.attributes.unit_of_measurement;
-    const debugUsedUnit = typeof debugUsedUnitRaw === "string" ? debugUsedUnitRaw : debugUsedUnitRaw == null ? "" : String(debugUsedUnitRaw);
     const usedTodayEntityId = this._config.used_slot_time_today_entity;
     const usedTodayStateObj = usedTodayEntityId ? this.hass?.states[usedTodayEntityId] : undefined;
     const todayUsedMinutes = this._config.test_data ? undefined : parseUsedMinutesEntity(usedTodayStateObj);
@@ -677,15 +672,6 @@ export class IntelligentOctopusSlotsCard extends LitElement {
                         <span>${formatMinutes(todayUsedMinutes)} used</span>
                       `
                     : nothing}
-                </div>
-                <div class="debug-line">
-                  Used Entity: ${debugUsedEntityId}
-                </div>
-                <div class="debug-line">
-                  Used State: ${debugUsedState}
-                </div>
-                <div class="debug-line">
-                  Used Unit: ${debugUsedUnit}
                 </div>
               </div>
             </div>
@@ -826,14 +812,6 @@ export class IntelligentOctopusSlotsCard extends LitElement {
       flex-wrap: wrap;
       font-size: 0.8rem;
       color: var(--secondary-text-color);
-    }
-
-    .debug-line {
-      margin-top: 2px;
-      font-size: 0.74rem;
-      line-height: 1.2;
-      color: var(--secondary-text-color);
-      word-break: break-word;
     }
 
     .summary-dot {
