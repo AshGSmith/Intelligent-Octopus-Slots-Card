@@ -32,6 +32,8 @@ export interface IntelligentOctopusSlotsCardConfig {
   show_completed_slots?: boolean;
   test_data?: boolean;
   dispatching_entity?: string;
+  used_slot_time_today_entity?: string;
+  used_slot_time_tomorrow_entity?: string;
 }
 
 export interface CardHelpersFormSchema {
