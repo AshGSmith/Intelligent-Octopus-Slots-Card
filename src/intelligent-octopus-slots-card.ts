@@ -95,6 +95,16 @@ const entityEditorSchema: CardHelpersFormSchema[] = [
   },
 ];
 
+const usedMinutesEditorSchema: CardHelpersFormSchema[] = [
+  {
+    name: "used_minutes_entity",
+    label: "Used Minutes Entity",
+    selector: {
+      entity: {},
+    },
+  },
+];
+
 const fireEvent = (node: HTMLElement, type: string, detail?: Record<string, unknown>) => {
   node.dispatchEvent(
     new CustomEvent(type, {
@@ -387,6 +397,14 @@ const detectDispatchingEntity = (hass?: HomeAssistant): string | undefined => {
   })?.entity_id;
 };
 
+const detectUsedMinutesEntity = (hass?: HomeAssistant): string | undefined => {
+  if (!hass) {
+    return undefined;
+  }
+
+  return hass.states[USED_MINUTES_ENTITY_ID] ? USED_MINUTES_ENTITY_ID : undefined;
+};
+
 @customElement("intelligent-octopus-slots-card")
 export class IntelligentOctopusSlotsCard extends LitElement {
   @property({ attribute: false }) public hass?: HomeAssistant;
@@ -408,6 +426,7 @@ export class IntelligentOctopusSlotsCard extends LitElement {
       show_completed_slots: true,
       test_data: false,
       dispatching_entity: detectDispatchingEntity(hass),
+      used_minutes_entity: detectUsedMinutesEntity(hass),
     };
   }
 
@@ -446,7 +465,8 @@ export class IntelligentOctopusSlotsCard extends LitElement {
     const slots = includeCompletedSlots ? allSlots : allSlots.filter((slot) => slot.endDate.getTime() > now);
     const summarySlotGroups = groupSlotsByDate(allSlots, now);
     const durationSummary = getDurationSummary(summarySlotGroups);
-    const usedMinutesState = this.hass?.states[USED_MINUTES_ENTITY_ID]?.state;
+    const usedMinutesEntityId = this._config.used_minutes_entity;
+    const usedMinutesState = usedMinutesEntityId ? this.hass?.states[usedMinutesEntityId]?.state : undefined;
     const usedMinutesValue = usedMinutesState !== undefined ? Number(usedMinutesState) : Number.NaN;
     const hasUsedMinutesValue = Number.isFinite(usedMinutesValue);
     const slotCount = originalSlots.length;
@@ -841,7 +861,10 @@ export class IntelligentOctopusSlotsCardEditor extends LitElement implements Lov
 
   @state() private _config?: IntelligentOctopusSlotsCardConfig;
 
+  private _didAutofillDetectedEntities = false;
+
   public setConfig(config: IntelligentOctopusSlotsCardConfig): void {
+    this._didAutofillDetectedEntities = false;
     this._config = {
       show_title: true,
       time_format: "24h",
@@ -868,19 +891,46 @@ export class IntelligentOctopusSlotsCardEditor extends LitElement implements Lov
 
   private _autoDetect(): void {
     const detected = detectDispatchingEntity(this.hass);
+    const detectedUsedMinutesEntity = detectUsedMinutesEntity(this.hass);
     if (!detected) {
       fireEvent(this, "hass-notification", {
         message: "No Octopus intelligent dispatching entity found.",
       });
-      return;
+      if (!detectedUsedMinutesEntity) {
+        return;
+      }
     }
 
     this._config = {
       ...this._config,
       type: CARD_TYPE,
-      dispatching_entity: detected,
+      dispatching_entity: detected ?? this._config?.dispatching_entity,
+      used_minutes_entity: this._config?.used_minutes_entity ?? detectedUsedMinutesEntity,
     };
 
+    fireEvent(this, "config-changed", {
+      config: this._config,
+    });
+  }
+
+  protected updated(): void {
+    if (!this.hass || !this._config || this._didAutofillDetectedEntities) {
+      return;
+    }
+
+    const nextConfig: IntelligentOctopusSlotsCardConfig = {
+      ...this._config,
+      used_minutes_entity: this._config.used_minutes_entity ?? detectUsedMinutesEntity(this.hass),
+    };
+
+    const changed = nextConfig.used_minutes_entity !== this._config.used_minutes_entity;
+    this._didAutofillDetectedEntities = true;
+
+    if (!changed) {
+      return;
+    }
+
+    this._config = nextConfig;
     fireEvent(this, "config-changed", {
       config: this._config,
     });
@@ -935,6 +985,14 @@ export class IntelligentOctopusSlotsCardEditor extends LitElement implements Lov
           .hass=${this.hass}
           .data=${this._config}
           .schema=${entityEditorSchema}
+          .computeLabel=${this._computeLabel}
+          @value-changed=${this._valueChanged}
+        ></ha-form>
+
+        <ha-form
+          .hass=${this.hass}
+          .data=${this._config}
+          .schema=${usedMinutesEditorSchema}
           .computeLabel=${this._computeLabel}
           @value-changed=${this._valueChanged}
         ></ha-form>
