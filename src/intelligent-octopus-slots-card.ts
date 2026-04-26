@@ -114,7 +114,10 @@ interface PlannedDispatchSlot {
 interface PlannedDispatchGroup {
   key: string;
   label: string;
+  shortLabel: string;
   slots: PlannedDispatchSlot[];
+  totalMinutes: number;
+  usedMinutes: number;
 }
 
 interface DurationSummary {
@@ -190,24 +193,85 @@ const formatGroupDate = (value: Date): string =>
     month: "short",
   }).format(value);
 
-const getSlotDateKey = (value: Date): string => value.toISOString().slice(0, 10);
+const getSlotDateKey = (value: Date): string => {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
 
-const groupSlotsByDate = (slots: PlannedDispatchSlot[]): PlannedDispatchGroup[] => {
+const getNextMidnight = (value: Date): Date =>
+  new Date(value.getFullYear(), value.getMonth(), value.getDate() + 1, 0, 0, 0, 0);
+
+const splitSlotsByDay = (slots: PlannedDispatchSlot[]): PlannedDispatchSlot[] => {
+  const splitSlots: PlannedDispatchSlot[] = [];
+
+  for (const slot of slots) {
+    let cursor = slot.startDate;
+
+    while (cursor.getTime() < slot.endDate.getTime()) {
+      const nextMidnight = getNextMidnight(cursor);
+      const segmentEnd = nextMidnight.getTime() < slot.endDate.getTime() ? nextMidnight : slot.endDate;
+
+      if (segmentEnd.getTime() > cursor.getTime()) {
+        splitSlots.push({
+          start: toLocalIsoString(cursor),
+          end: toLocalIsoString(segmentEnd),
+          startDate: cursor,
+          endDate: segmentEnd,
+        });
+      }
+
+      cursor = segmentEnd;
+    }
+  }
+
+  return splitSlots;
+};
+
+const getUsedMinutes = (slot: PlannedDispatchSlot, now: number): number => {
+  if (now <= slot.startDate.getTime()) {
+    return 0;
+  }
+
+  if (now >= slot.endDate.getTime()) {
+    return Math.max(0, Math.round((slot.endDate.getTime() - slot.startDate.getTime()) / 60000));
+  }
+
+  return Math.max(0, Math.round((now - slot.startDate.getTime()) / 60000));
+};
+
+const formatGroupShortDate = (value: Date, now: Date): string => {
+  if (getSlotDateKey(value) === getSlotDateKey(now)) {
+    return "today";
+  }
+
+  return formatCondensedDate(value);
+};
+
+const groupSlotsByDate = (slots: PlannedDispatchSlot[], now: number): PlannedDispatchGroup[] => {
   const groups = new Map<string, PlannedDispatchGroup>();
 
   for (const slot of slots) {
     const key = getSlotDateKey(slot.startDate);
     const existing = groups.get(key);
+    const slotMinutes = Math.max(0, Math.round((slot.endDate.getTime() - slot.startDate.getTime()) / 60000));
+    const usedMinutes = getUsedMinutes(slot, now);
 
     if (existing) {
       existing.slots.push(slot);
+      existing.totalMinutes += slotMinutes;
+      existing.usedMinutes += usedMinutes;
       continue;
     }
 
     groups.set(key, {
       key,
       label: formatGroupDate(slot.startDate),
+      shortLabel: formatGroupShortDate(slot.startDate, new Date(now)),
       slots: [slot],
+      totalMinutes: slotMinutes,
+      usedMinutes,
     });
   }
 
@@ -244,13 +308,8 @@ const getDurationSummary = (slotGroups: PlannedDispatchGroup[]): DurationSummary
   let longestDayMinutes = 0;
 
   for (const group of slotGroups) {
-    const dayMinutes = group.slots.reduce(
-      (sum, slot) => sum + Math.max(0, Math.round((slot.endDate.getTime() - slot.startDate.getTime()) / 60000)),
-      0,
-    );
-
-    totalMinutes += dayMinutes;
-    longestDayMinutes = Math.max(longestDayMinutes, dayMinutes);
+    totalMinutes += group.totalMinutes;
+    longestDayMinutes = Math.max(longestDayMinutes, group.totalMinutes);
   }
 
   return {
@@ -390,24 +449,25 @@ export class IntelligentOctopusSlotsCard extends LitElement {
     const rawPlannedDispatches = this._config.test_data
       ? createSamplePlannedDispatches()
       : entity?.attributes.planned_dispatches;
-    const allSlots = parsePlannedDispatches(rawPlannedDispatches, {
+    const originalSlots = parsePlannedDispatches(rawPlannedDispatches, {
       includePast: true,
     });
+    const allSlots = splitSlotsByDay(originalSlots);
     const now = Date.now();
     const includeCompletedSlots = this._config.condensed_view ? false : this._config.show_completed_slots !== false;
     const slots = includeCompletedSlots ? allSlots : allSlots.filter((slot) => slot.endDate.getTime() > now);
-    const summarySlotGroups = groupSlotsByDate(allSlots);
+    const summarySlotGroups = groupSlotsByDate(allSlots, now);
     const durationSummary = getDurationSummary(summarySlotGroups);
-    const slotCount = allSlots.length;
+    const slotCount = originalSlots.length;
     const summaryDate =
-      summarySlotGroups.length === 1 && slotCount ? formatSummaryDate(allSlots[0].startDate) : undefined;
-    const slotGroups = groupSlotsByDate(slots);
+      summarySlotGroups.length === 1 && slotCount ? formatSummaryDate(summarySlotGroups[0].slots[0].startDate) : undefined;
+    const slotGroups = groupSlotsByDate(slots, now);
     const title = this._config.title || "Intelligent Octopus Slots";
     const icon = this._config.icon || DEFAULT_ICON;
     const timeFormat = this._config.time_format ?? "24h";
-    const showCondensedDate = slotGroups.length > 1;
+    const showCondensedDate = slotGroups.length > 1 || slots.length === 1;
     const isActiveSampleSlot = this._config.test_data
-      ? allSlots.some((slot) => {
+      ? originalSlots.some((slot) => {
           return slot.startDate.getTime() <= now && now < slot.endDate.getTime();
         })
       : false;
@@ -416,6 +476,8 @@ export class IntelligentOctopusSlotsCard extends LitElement {
     // Long-day warnings are based on any single day's generated slot total.
     // Exactly 6h does not warn; only totals greater than 6h trigger the badge.
     const hasLongDay = durationSummary.longestDayMinutes > 360;
+    const longDayGroups = summarySlotGroups.filter((group) => group.totalMinutes > 360);
+    const shouldShowInlineDate = slots.length === 1;
 
     return html`
       <ha-card>
@@ -437,12 +499,14 @@ export class IntelligentOctopusSlotsCard extends LitElement {
                           ? html`<span class="summary-dot"></span>${summaryDate}`
                           : html`<span class="summary-dot"></span>${summarySlotGroups.length} scheduled day${summarySlotGroups.length === 1 ? "" : "s"}`}
                         ${hasLongDay
-                          ? html`
-                              <span class="summary-dot"></span>
-                              <span class="duration-alert">
-                                <span>${formatMinutes(durationSummary.longestDayMinutes)} today</span>
-                              </span>
-                            `
+                          ? longDayGroups.map(
+                              (group) => html`
+                                <span class="summary-dot"></span>
+                                <span class="duration-alert">
+                                  <span>${formatMinutes(group.totalMinutes)} ${group.shortLabel} · ${formatMinutes(group.usedMinutes)} used</span>
+                                </span>
+                              `,
+                            )
                           : nothing}
                       `
                     : html`No charging slots scheduled`}
@@ -488,7 +552,12 @@ export class IntelligentOctopusSlotsCard extends LitElement {
 
                                       return html`
                                       <div class="slot-chip ${isPast ? "past" : ""}">
-                                        <div class="slot-times">${formatTimeRange(slot, timeFormat)}</div>
+                                        <div class="slot-times">
+                                          ${shouldShowInlineDate
+                                            ? html`<span class="slot-date">${formatCondensedDate(slot.startDate)}</span>`
+                                            : nothing}
+                                          ${formatTimeRange(slot, timeFormat)}
+                                        </div>
                                         <div class="slot-meta-wrap">
                                           ${isPast ? html`<span class="past-badge">Complete</span>` : nothing}
                                           <div class="slot-meta">${formatDuration(slot.startDate, slot.endDate)}</div>
