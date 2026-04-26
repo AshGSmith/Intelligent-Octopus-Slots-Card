@@ -606,6 +606,9 @@ export class IntelligentOctopusSlotsCard extends LitElement {
     const slots = includeCompletedSlots ? allSlots : allSlots.filter((slot) => slot.endDate.getTime() > now);
     const summarySlotGroups = groupSlotsByDate(allSlots, now, usedMinutesByDay);
     const durationSummary = getDurationSummary(summarySlotGroups);
+    const todayKey = getSlotDateKey(new Date(now));
+    const todayUsedMinutes = usedMinutesByDay.get(todayKey);
+    const hasTodayUsedMinutes = usedMinutesByDay.has(todayKey);
     const slotCount = originalSlots.length;
     const summaryDate =
       summarySlotGroups.length === 1 && slotCount ? formatSummaryDate(summarySlotGroups[0].slots[0].startDate) : undefined;
@@ -643,6 +646,12 @@ export class IntelligentOctopusSlotsCard extends LitElement {
                         <span>${slotCount} slot${slotCount === 1 ? "" : "s"}</span>
                         <span class="summary-dot"></span>
                         <span class="duration-total">${formatSummaryDuration(durationSummary)}</span>
+                        ${hasTodayUsedMinutes && todayUsedMinutes !== undefined
+                          ? html`
+                              <span class="summary-dot"></span>
+                              <span>${formatMinutes(todayUsedMinutes)} used</span>
+                            `
+                          : nothing}
                         ${summaryDate
                           ? html`<span class="summary-dot"></span>${summaryDate}`
                           : html`<span class="summary-dot"></span>${summarySlotGroups.length} scheduled day${summarySlotGroups.length === 1 ? "" : "s"}`}
